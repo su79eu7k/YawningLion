@@ -18,12 +18,7 @@ def ox_load_workbook(filepath):
 
 
 def xw_load_workbooks(filepath):
-    try:
-
-        return xw.Book(filepath)
-    except FileNotFoundError as ex:
-
-        return False
+    return xw.Book(filepath)
 
 
 if __name__ == '__main__':
