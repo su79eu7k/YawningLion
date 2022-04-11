@@ -43,7 +43,7 @@ class FileInfo(BaseModel):
 
 class Selection(Message):
     range: str | None = None
-    value: float | None = None
+    value: int | float | str | None = None
 
 
 app = FastAPI()
