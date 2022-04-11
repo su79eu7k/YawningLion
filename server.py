@@ -7,7 +7,9 @@ class Worker:
     def __init__(self):
         self.filepath = None
         self.workbook = None
-        self.selection = None
+        self.worksheet = None
+        self.range = None
+        self.value = None
 
     def connect_workbook(self, filepath):
         try:
@@ -19,7 +21,10 @@ class Worker:
             return False
 
     def get_selection(self):
-        self.selection = eng.xw_get_selection(self.workbook)
+        _selection = eng.xw_get_selection(self.workbook).split('!')
+        self.worksheet = _selection[0].replace("'", "")
+        self.range = _selection[1]
+        self.value = self.workbook.sheets[self.worksheet].range(self.range).value
 
         return True
 
@@ -37,7 +42,8 @@ class FileInfo(BaseModel):
 
 
 class Selection(Message):
-    address: str
+    range: str | None = None
+    value: float | None = None
 
 
 app = FastAPI()
@@ -61,11 +67,13 @@ async def connect_workbook(fileinfo: FileInfo):
 async def get_selection():
     if sess.workbook:
         sess.get_selection()
-        if sess.selection:
-            if ':' in sess.selection:
-                return {"address": "Range", "code": 0, "message": "Failed: Selection too wide"}
+        if sess.range:
+            if ':' in sess.range:
+                return {"range": "WideRange", "code": 0, "message": "Failed: Selection is too wide."}
             else:
-                return {"address": sess.selection, "code": 1, "message": "Success"}
+                return {"range": sess.range, "value": sess.value, "code": 1, "message": "Success"}
         else:
-            return {"address": "None", "code": 0, "message": "Failed: No selection"}
+            return {"code": 0, "message": "Failed: No selection."}
+    else:
+        return {"code": 0, "message": "Failed: Workbook disconnected."}
 

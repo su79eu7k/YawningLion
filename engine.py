@@ -16,7 +16,7 @@ def xw_activate_workbook(func):
 
 @xw_activate_workbook
 def xw_get_selection(workbook):
-    return workbook.selection.get_address(False, False, False, False)
+    return workbook.selection.get_address(False, False, True, False)
 
 
 if __name__ == '__main__':
