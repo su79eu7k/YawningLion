@@ -46,6 +46,21 @@ class Selection(Message):
     value: int | float | str | None = None
 
 
+class VarIn(BaseModel):
+    start: int | float
+    end: int | float
+    num: int
+    dist: str
+    loc: bool = 0
+    scale: bool = 1
+
+
+class VarOut(BaseModel):
+    dist: str
+    x: list[float]
+    prob: list[float]
+
+
 app = FastAPI()
 
 
@@ -76,4 +91,11 @@ async def get_selection():
             return {"code": 0, "message": "Failed: No selection."}
     else:
         return {"code": 0, "message": "Failed: Workbook disconnected."}
+
+
+@app.post("/io_variable", response_model=VarOut)
+async def io_variable(var: VarIn):
+    x, prob = eng.gen_dist_uniform(var.start, var.end, var.num, var.loc, var.scale)
+
+    return {"dist": var.dist, "x": x.tolist(), "prob": prob.tolist()}
 
