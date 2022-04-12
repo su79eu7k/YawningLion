@@ -1,5 +1,6 @@
 import engine as eng
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
@@ -71,6 +72,18 @@ class VarCommit(BaseModel):
 
 app = FastAPI()
 
+origins = [
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 async def root():
@@ -112,3 +125,16 @@ async def io_variable(var: VarIn):
 async def commit_variable(variable: VarCommit):
     sess.variables[variable.range] = variable.x
     sess.probs[variable.range] = variable.prob
+
+
+@app.post("/upload_file/", response_model=Message)
+async def upload_file(file: UploadFile):
+    filepath = './workbooks/' + file.filename
+    with open(filepath, 'wb+') as f:
+        f.write(file.file.read())
+
+    if sess.connect_workbook(filepath):
+        if sess.get_selection():
+            return {"code": 1, "message": "Success"}
+    else:
+        return {"code": 0, "message": "Failed"}
