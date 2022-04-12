@@ -10,6 +10,8 @@ class Worker:
         self.worksheet = None
         self.range = None
         self.value = None
+        self.variables = {}
+        self.probs = {}
 
     def connect_workbook(self, filepath):
         try:
@@ -55,8 +57,14 @@ class VarIn(BaseModel):
     scale: bool = 1
 
 
-class VarOut(BaseModel):
+class VarOut(Message):
     dist: str
+    x: list[float]
+    prob: list[float]
+
+
+class VarCommit(BaseModel):
+    range: str
     x: list[float]
     prob: list[float]
 
@@ -97,5 +105,10 @@ async def get_selection():
 async def io_variable(var: VarIn):
     x, prob = eng.gen_dist_uniform(var.start, var.end, var.num, var.loc, var.scale)
 
-    return {"dist": var.dist, "x": x.tolist(), "prob": prob.tolist()}
+    return {"dist": var.dist, "x": x.tolist(), "prob": prob.tolist(), "code": 1, "message": "Success"}
 
+
+@app.post("/commit_variable")
+async def commit_variable(variable: VarCommit):
+    sess.variables[variable.range] = variable.x
+    sess.probs[variable.range] = variable.prob
