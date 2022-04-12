@@ -1,3 +1,4 @@
+import datetime
 import engine as eng
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,6 +75,7 @@ app = FastAPI()
 
 origins = [
     "http://127.0.0.1:3000",
+    "http://localhost:3000",
 ]
 
 app.add_middleware(
@@ -128,13 +130,17 @@ async def commit_variable(variable: VarCommit):
 
 
 @app.post("/upload_file/", response_model=Message)
-async def upload_file(file: UploadFile):
-    filepath = './workbooks/' + file.filename
+def upload_file(uploadfile: UploadFile):
+    _ext = uploadfile.filename.split('.')[-1]
+    _fn = f"SStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.{_ext}"
+    filepath = './workbooks/' + _fn
     with open(filepath, 'wb+') as f:
-        f.write(file.file.read())
+        f.write(uploadfile.file.read())
 
     if sess.connect_workbook(filepath):
         if sess.get_selection():
             return {"code": 1, "message": "Success"}
+        else:
+            return {"code": 0, "message": "Failed"}
     else:
         return {"code": 0, "message": "Failed"}
