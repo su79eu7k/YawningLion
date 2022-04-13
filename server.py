@@ -151,9 +151,9 @@ async def commit_variable(variable: VarCommit):
 @app.get("/check_connection", response_model=Response)
 async def check_connection():
     if sess.check_connection():
-        return {"code": 1, "message": f"Success: Connected to {sess.filename_ext}"}
+        return {"code": 1, "message": f"{sess.filename_ext}"}
     else:
         if sess.filename_ext:
-            return {"code": 0, "message": f"Failed: Disconnected from {sess.filename_ext}"}
+            return {"code": 0, "message": f"Disconnected"}
         else:
-            return {"code": -1, "message": f"Failed: Never connected."}
+            return {"code": -1, "message": f"Never connected"}
