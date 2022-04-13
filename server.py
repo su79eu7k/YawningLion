@@ -1,13 +1,17 @@
 import datetime
 import engine as eng
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
 class Worker:
     def __init__(self):
-        self.filepath = None
+        self.ext = None
+        self.filename = None
+        self.filename_ext = None
+        self.wdir = './workbooks/'
+        self.fullpath = None
         self.workbook = None
         self.worksheet = None
         self.range = None
@@ -15,14 +19,25 @@ class Worker:
         self.variables = {}
         self.probs = {}
 
-    def connect_workbook(self, filepath):
+    def connect_workbook(self, fullpath):
         try:
-            self.workbook = eng.xw_load_workbooks(filepath)
+            self.workbook = eng.xw_load_workbooks(fullpath)
 
             return True
         except FileNotFoundError as ex:
 
             return False
+
+    def init_workbook(self, uploadfile):
+        self.ext = '.' + uploadfile.filename.split('.')[-1]
+        self.filename = f"SStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.filename_ext = self.filename + self.ext
+        self.fullpath = self.wdir + self.filename_ext
+
+        with open(self.fullpath, 'wb+') as f:
+            f.write(uploadfile.file.read())
+
+        return True
 
     def get_selection(self):
         _selection = eng.xw_get_selection(self.workbook).split('!')
@@ -36,16 +51,12 @@ class Worker:
 sess = Worker()
 
 
-class Message(BaseModel):
-    code: int = 9
+class Response(BaseModel):
+    code: int
     message: str | None = None
 
 
-class FileInfo(BaseModel):
-    filepath: str
-
-
-class Selection(Message):
+class Selection(Response):
     range: str | None = None
     value: int | float | str | None = None
 
@@ -59,7 +70,7 @@ class VarIn(BaseModel):
     scale: bool = 1
 
 
-class VarOut(Message):
+class VarOut(Response):
     dist: str
     x: list[float]
     prob: list[float]
@@ -87,40 +98,40 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+@app.post("/upload_file/", response_model=Response)
+async def upload_file(uploadfile: UploadFile):
+    sess.init_workbook(uploadfile)
+    sess.connect_workbook(sess.fullpath)
+    sess.get_selection()
 
-
-@app.post("/connect_workbook", response_model=Message)
-async def connect_workbook(fileinfo: FileInfo):
-    # if sess.connect_workbook(fileinfo.filepath):
-    if sess.connect_workbook('D:/Localhome/sekim/OneDrive - ZF Friedrichshafen AG/Desktop/NPV concept.xlsx'):
-        return {"code": 1, "message": "Success"}
-    else:
-        return {"code": 0, "message": "Failed"}
+    return {"code": 1,
+            "message": "Success: Workbook initiation, Connection, Getting selection."}
 
 
 @app.get("/get_selection", response_model=Selection)
 async def get_selection():
-    if sess.workbook:
-        sess.get_selection()
-        if sess.range:
-            if ':' in sess.range:
-                return {"range": "WideRange", "code": 0, "message": "Failed: Selection is too wide."}
-            else:
-                return {"range": sess.range, "value": sess.value, "code": 1, "message": "Success"}
-        else:
-            return {"code": 0, "message": "Failed: No selection."}
+    sess.get_selection()
+
+    if ':' in sess.range:
+        return {"range": "WideRange",
+                "code": 0,
+                "message": "Success: Connection. Failed: Getting selection(Too wide)."}
     else:
-        return {"code": 0, "message": "Failed: Workbook disconnected."}
+        return {"range": sess.range,
+                "value": sess.value,
+                "code": 1,
+                "message": "Success: Connection, Getting selection."}
 
 
 @app.post("/io_variable", response_model=VarOut)
 async def io_variable(var: VarIn):
     x, prob = eng.gen_dist_uniform(var.start, var.end, var.num, var.loc, var.scale)
 
-    return {"dist": var.dist, "x": x.tolist(), "prob": prob.tolist(), "code": 1, "message": "Success"}
+    return {"dist": var.dist,
+            "x": x.tolist(),
+            "prob": prob.tolist(),
+            "code": 1,
+            "message": "Success: Variable processed with requested distribution."}
 
 
 @app.post("/commit_variable")
@@ -129,18 +140,10 @@ async def commit_variable(variable: VarCommit):
     sess.probs[variable.range] = variable.prob
 
 
-@app.post("/upload_file/", response_model=Message)
-def upload_file(uploadfile: UploadFile):
-    _ext = uploadfile.filename.split('.')[-1]
-    _fn = f"SStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.{_ext}"
-    filepath = './workbooks/' + _fn
-    with open(filepath, 'wb+') as f:
-        f.write(uploadfile.file.read())
 
-    if sess.connect_workbook(filepath):
-        if sess.get_selection():
-            return {"code": 1, "message": "Success"}
-        else:
-            return {"code": 0, "message": "Failed"}
-    else:
-        return {"code": 0, "message": "Failed"}
+# try:
+#     conn = sess.get_selection()
+# except Exception as ex:
+#     return {"code": 0,
+#             "message": f"Failed: {ex}",
+#             "conn": 0}
