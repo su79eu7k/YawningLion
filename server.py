@@ -47,6 +47,14 @@ class Worker:
 
         return True
 
+    def check_connection(self):
+        try:
+            self.workbook.activate()
+            return True
+        except Exception as ex:
+            print(ex)
+            return False
+
 
 sess = Worker()
 
@@ -140,10 +148,12 @@ async def commit_variable(variable: VarCommit):
     sess.probs[variable.range] = variable.prob
 
 
-
-# try:
-#     conn = sess.get_selection()
-# except Exception as ex:
-#     return {"code": 0,
-#             "message": f"Failed: {ex}",
-#             "conn": 0}
+@app.get("/check_connection", response_model=Response)
+async def get_selection():
+    if sess.check_connection():
+        return {"code": 1, "message": f"Success: Connected to {sess.filename_ext}"}
+    else:
+        if sess.filename_ext:
+            return {"code": 0, "message": f"Failed: Disconnected from {sess.filename_ext}"}
+        else:
+            return {"code": -1, "message": f"Failed: Never connected."}
