@@ -49,7 +49,7 @@ class Worker:
 
     def check_connection(self):
         try:
-            self.workbook.activate()
+            self.workbook.app
             return True
         except Exception as ex:
             print(ex)
@@ -65,6 +65,7 @@ class Response(BaseModel):
 
 
 class Selection(Response):
+    sheet: str | None = None
     range: str | None = None
     value: int | float | str | None = None
 
@@ -121,11 +122,13 @@ async def get_selection():
     sess.get_selection()
 
     if ':' in sess.range:
-        return {"range": "WideRange",
+        return {"sheet": sess.worksheet,
+                "range": "WideRange",
                 "code": 0,
                 "message": "Success: Connection. Failed: Getting selection(Too wide)."}
     else:
-        return {"range": sess.range,
+        return {"sheet": sess.worksheet,
+                "range": sess.range,
                 "value": sess.value,
                 "code": 1,
                 "message": "Success: Connection, Getting selection."}
