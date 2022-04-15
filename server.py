@@ -1,6 +1,6 @@
 import datetime
 import engine as eng
-from fastapi import FastAPI, Request, UploadFile
+from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -85,16 +85,23 @@ class VarOut(Response):
     prob: list[float]
 
 
-class VarCommit(BaseModel):
+class VarAssign(BaseModel):
     sheet: str
     cell: str
     x: list[float]
     prob: list[float]
 
 
+class VarUnassign(BaseModel):
+    sheet: str
+    cell: str
+
+
 app = FastAPI()
 
 origins = [
+    "http://127.0.0.1",
+    "http://localhost",
     "http://127.0.0.1:3000",
     "http://localhost:3000",
 ]
@@ -149,13 +156,22 @@ async def io_variable(var: VarIn):
             "message": "Success: Variable processed with requested distribution."}
 
 
-@app.post("/commit_variable", response_model=Response)
-async def commit_variable(variable: VarCommit):
+@app.post("/assign_variable", response_model=Response)
+async def assign_variable(variable: VarAssign):
     _key = '!'.join([variable.sheet, variable.cell])
     sess.variables[_key] = variable.x
     sess.probs[_key] = variable.prob
 
-    return {"code": 1, "message": f"Success: Committed."}
+    return {"code": 1, "message": f"Success: Assigned."}
+
+
+@app.post("/unassign_variable", response_model=Response)
+async def unassign_variable(variable: VarUnassign):
+    _key = '!'.join([variable.sheet, variable.cell])
+    del sess.variables[_key]
+    del sess.probs[_key]
+
+    return {"code": 1, "message": f"Success: Unassigned."}
 
 
 @app.get("/check_connection", response_model=Response)
