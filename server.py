@@ -136,7 +136,10 @@ async def get_selection():
 
 @app.post("/io_variable", response_model=VarOut)
 async def io_variable(var: VarIn):
-    x, prob = eng.gen_dist_uniform(var.start, var.end, var.num, var.loc, var.scale)
+    if var.dist == 'normal':
+        x, prob = eng.gen_dist_normal(var.start, var.end, var.num, var.loc, var.scale)
+    else:
+        x, prob = eng.gen_dist_uniform(var.start, var.end, var.num, var.loc, var.scale)
 
     return {"dist": var.dist,
             "x": x.tolist(),
