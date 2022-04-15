@@ -67,7 +67,7 @@ class Response(BaseModel):
 class Selection(Response):
     sheet: str | None = None
     range: str | None = None
-    value: int | float | str | None = None
+    value: str | None = None
 
 
 class VarIn(BaseModel):
