@@ -73,7 +73,7 @@ class Selection(Response):
 class VarIn(BaseModel):
     start: int | float
     end: int | float
-    num: int
+    step: int
     dist: str
     loc: bool = 0
     scale: bool = 1
@@ -86,7 +86,8 @@ class VarOut(Response):
 
 
 class VarCommit(BaseModel):
-    range: str
+    sheet: str
+    cell: str
     x: list[float]
     prob: list[float]
 
@@ -137,9 +138,9 @@ async def get_selection():
 @app.post("/io_variable", response_model=VarOut)
 async def io_variable(var: VarIn):
     if var.dist == 'normal':
-        x, prob = eng.gen_dist_normal(var.start, var.end, var.num, var.loc, var.scale)
+        x, prob = eng.gen_dist_normal(var.start, var.end, var.step, var.loc, var.scale)
     else:
-        x, prob = eng.gen_dist_uniform(var.start, var.end, var.num, var.loc, var.scale)
+        x, prob = eng.gen_dist_uniform(var.start, var.end, var.step, var.loc, var.scale)
 
     return {"dist": var.dist,
             "x": x.tolist(),
@@ -148,10 +149,13 @@ async def io_variable(var: VarIn):
             "message": "Success: Variable processed with requested distribution."}
 
 
-@app.post("/commit_variable")
+@app.post("/commit_variable", response_model=Response)
 async def commit_variable(variable: VarCommit):
-    sess.variables[variable.range] = variable.x
-    sess.probs[variable.range] = variable.prob
+    _key = '!'.join([variable.sheet, variable.cell])
+    sess.variables[_key] = variable.x
+    sess.probs[_key] = variable.prob
+
+    return {"code": 1, "message": f"Success: Committed."}
 
 
 @app.get("/check_connection", response_model=Response)
