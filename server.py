@@ -15,7 +15,6 @@ class Worker:
         self.workbook = None
         self.worksheet = None
         self.range = None
-        self.value = None
         self.variables = {}
         self.probs = {}
 
@@ -43,7 +42,6 @@ class Worker:
         _selection = eng.xw_get_selection(self.workbook).split('!')
         self.worksheet = _selection[0].replace("'", "")
         self.range = _selection[1]
-        self.value = self.workbook.sheets[self.worksheet].range(self.range).value
 
         return True
 
@@ -67,7 +65,6 @@ class Response(BaseModel):
 class Selection(Response):
     sheet: str | None = None
     range: str | None = None
-    value: str | None = None
 
 
 class VarIn(BaseModel):
@@ -137,7 +134,6 @@ async def get_selection():
     else:
         return {"sheet": sess.worksheet,
                 "range": sess.range,
-                "value": sess.value,
                 "code": 1,
                 "message": "Success: Connection, Getting selection."}
 
