@@ -17,6 +17,7 @@ class Worker:
         self.range = None
         self.variables = {}
         self.probs = {}
+        self.monitorings = []
 
     def connect_workbook(self, fullpath):
         try:
@@ -53,6 +54,11 @@ class Worker:
             print(ex)
             return False
 
+    def simulation(self):
+        import time
+        time.sleep(20)
+        return True
+
 
 sess = Worker()
 
@@ -67,7 +73,7 @@ class Selection(Response):
     range: str | None = None
 
 
-class VarIn(BaseModel):
+class ProbReq(BaseModel):
     start: int | float
     end: int | float
     step: int
@@ -76,23 +82,28 @@ class VarIn(BaseModel):
     scale: bool = 1
 
 
-class VarOut(Response):
+class ProbRes(Response):
     dist: str
     x: list[float]
     prob: list[float]
 
 
-class VarAssign(BaseModel):
+class RandomCellAdd(BaseModel):
     sheet: str
     cell: str
     x: list[float]
     prob: list[float]
 
 
-class VarUnassign(BaseModel):
+class RandomCellRemove(BaseModel):
     sheet: str
     cell: str
 
+
+class MonitoringCellReqs(BaseModel):
+    sheet: str
+    cell: str
+    
 
 app = FastAPI()
 
@@ -138,36 +149,52 @@ async def get_selection():
                 "message": "Success: Connection, Getting selection."}
 
 
-@app.post("/io_variable", response_model=VarOut)
-async def io_variable(var: VarIn):
-    if var.dist == 'normal':
-        x, prob = eng.gen_dist_normal(var.start, var.end, var.step, var.loc, var.scale)
+@app.post("/prob", response_model=ProbRes)
+async def prob(prob_req: ProbReq):
+    if prob_req.dist == 'normal':
+        x, prob = eng.gen_dist_normal(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     else:
-        x, prob = eng.gen_dist_uniform(var.start, var.end, var.step, var.loc, var.scale)
+        x, prob = eng.gen_dist_uniform(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
 
-    return {"dist": var.dist,
+    return {"dist": prob_req.dist,
             "x": x.tolist(),
             "prob": prob.tolist(),
             "code": 1,
             "message": "Success: Variable processed with requested distribution."}
 
 
-@app.post("/assign_variable", response_model=Response)
-async def assign_variable(variable: VarAssign):
-    _key = '!'.join([variable.sheet, variable.cell])
-    sess.variables[_key] = variable.x
-    sess.probs[_key] = variable.prob
+@app.post("/add_random_cell", response_model=Response)
+async def add_random_cell(random_cell_add: RandomCellAdd):
+    _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
+    sess.variables[_key] = random_cell_add.x
+    sess.probs[_key] = random_cell_add.prob
 
     return {"code": 1, "message": f"Success: Assigned."}
 
 
-@app.post("/unassign_variable", response_model=Response)
-async def unassign_variable(variable: VarUnassign):
-    _key = '!'.join([variable.sheet, variable.cell])
+@app.post("/remove_random_cell", response_model=Response)
+async def remove_random_cell(random_cell_remove: RandomCellRemove):
+    _key = '!'.join([random_cell_remove.sheet, random_cell_remove.cell])
     del sess.variables[_key]
     del sess.probs[_key]
 
     return {"code": 1, "message": f"Success: Unassigned."}
+
+
+@app.post("/add_monitoring_cell", response_model=Response)
+async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
+    _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
+    sess.monitorings.append(_key)
+
+    return {"code": 1, "message": f"Success: Assigned."}
+
+
+@app.post("/remove_monitoring_cell", response_model=Response)
+async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
+    _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
+    sess.monitorings.remove(_key)
+
+    return {"code": 1, "message": f"Success: Assigned."}
 
 
 @app.get("/check_connection", response_model=Response)
@@ -179,3 +206,10 @@ async def check_connection():
             return {"code": 0, "message": f"Disconnected"}
         else:
             return {"code": -1, "message": f"Never connected"}
+
+
+@app.get("/async_test")
+async def async_test():
+    import asyncio
+    await asyncio.to_thread(sess.simulation)
+    return True
