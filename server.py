@@ -15,9 +15,9 @@ class Worker:
         self.workbook = None
         self.worksheet = None
         self.range = None
-        self.variables = {}
+        self.random_cells = {}
         self.probs = {}
-        self.monitorings = []
+        self.monitoring_cells = []
 
     def connect_workbook(self, fullpath):
         try:
@@ -166,7 +166,7 @@ async def prob(prob_req: ProbReq):
 @app.post("/add_random_cell", response_model=Response)
 async def add_random_cell(random_cell_add: RandomCellAdd):
     _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
-    sess.variables[_key] = random_cell_add.x
+    sess.random_cells[_key] = random_cell_add.x
     sess.probs[_key] = random_cell_add.prob
 
     return {"code": 1, "message": f"Success: Assigned."}
@@ -175,7 +175,7 @@ async def add_random_cell(random_cell_add: RandomCellAdd):
 @app.post("/remove_random_cell", response_model=Response)
 async def remove_random_cell(random_cell_remove: RandomCellRemove):
     _key = '!'.join([random_cell_remove.sheet, random_cell_remove.cell])
-    del sess.variables[_key]
+    del sess.random_cells[_key]
     del sess.probs[_key]
 
     return {"code": 1, "message": f"Success: Unassigned."}
@@ -184,7 +184,7 @@ async def remove_random_cell(random_cell_remove: RandomCellRemove):
 @app.post("/add_monitoring_cell", response_model=Response)
 async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
     _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
-    sess.monitorings.append(_key)
+    sess.monitoring_cells.append(_key)
 
     return {"code": 1, "message": f"Success: Assigned."}
 
@@ -192,7 +192,7 @@ async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
 @app.post("/remove_monitoring_cell", response_model=Response)
 async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
     _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
-    sess.monitorings.remove(_key)
+    sess.monitoring_cells.remove(_key)
 
     return {"code": 1, "message": f"Success: Assigned."}
 
