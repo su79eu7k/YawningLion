@@ -1,5 +1,8 @@
+from math import ceil
 import datetime
+import numpy as np
 import engine as eng
+import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -17,7 +20,7 @@ class Worker:
         self.range = None
         self.random_cells = {}
         self.probs = {}
-        self.monitoring_cells = []
+        self.monitoring_cells = {}
 
     def connect_workbook(self, fullpath):
         try:
@@ -48,15 +51,45 @@ class Worker:
 
     def check_connection(self):
         try:
-            self.workbook.app
+            _ = self.workbook.app
             return True
         except Exception as ex:
             print(ex)
             return False
 
-    def simulation(self):
-        import time
-        time.sleep(20)
+    def make_chunk(self, lst, size):
+        return list(map(
+            lambda x: lst[x * size:x * size + size], list(range(0, ceil(len(lst) / size)))))
+
+    async def process_chunk(self, chunk, sim_inputs):
+        for n in chunk:
+            for k in sim_inputs.keys():
+                _sheet = k.split('!')[0]
+                _cell = k.split('!')[1]
+
+                self.workbook.sheets(_sheet).range(_cell).value = sim_inputs[k][n]
+
+            for k in self.monitoring_cells.keys():
+                _sheet = k.split('!')[0]
+                _cell = k.split('!')[1]
+
+                self.monitoring_cells[k].append(self.workbook.sheets(_sheet).range(_cell).value)
+
+        return True
+
+    async def proceed_simulation(self, iter):
+        sim_inputs = {}
+        for k in self.random_cells.keys():
+            _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
+            sim_inputs[k] = np.random.choice(self.random_cells[k], iter, p=_prob)
+
+        _chunks = self.make_chunk(list(range(iter)), 20)
+
+        for i, c in enumerate(_chunks):
+            t = asyncio.create_task(self.process_chunk(c, sim_inputs), name=f'Chunk-{i}')
+            await t
+            print(t.get_name())
+
         return True
 
 
@@ -126,6 +159,7 @@ app.add_middleware(
 @app.post("/upload_file/", response_model=Response)
 async def upload_file(uploadfile: UploadFile):
     sess.init_workbook(uploadfile)
+    # await asyncio.to_thread(sess.init_workbook, uploadfile=uploadfile)
     sess.connect_workbook(sess.fullpath)
     sess.get_selection()
 
@@ -184,7 +218,7 @@ async def remove_random_cell(random_cell_remove: RandomCellRemove):
 @app.post("/add_monitoring_cell", response_model=Response)
 async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
     _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
-    sess.monitoring_cells.append(_key)
+    sess.monitoring_cells[_key] = []
 
     return {"code": 1, "message": f"Success: Assigned."}
 
@@ -192,7 +226,7 @@ async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
 @app.post("/remove_monitoring_cell", response_model=Response)
 async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
     _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
-    sess.monitoring_cells.remove(_key)
+    del sess.monitoring_cells[_key]
 
     return {"code": 1, "message": f"Success: Assigned."}
 
@@ -208,8 +242,11 @@ async def check_connection():
             return {"code": -1, "message": f"Never connected"}
 
 
-@app.get("/async_test")
-async def async_test():
-    import asyncio
-    await asyncio.to_thread(sess.simulation)
+@app.get("/proc_sim")
+async def proc_sim():
+    await sess.proceed_simulation(iter=200)
+    # sess.proceed_simulation()
+    print(sess.monitoring_cells)
+    print(sess.monitoring_cells[list(sess.monitoring_cells.keys())[0]])
+
     return True
