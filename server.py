@@ -20,7 +20,9 @@ class Worker:
         self.random_cells = {}
         self.probs = {}
         self.trial_cells = {}
+
         self.monitoring_cells = {}
+        self.progress = None
 
     def connect_workbook(self, fullpath):
         try:
@@ -65,7 +67,8 @@ class Worker:
 
         return True
 
-    async def proceed_simulation(self, num_trial, num_chunk=20):
+    async def proceed_simulation(self, num_trial, num_chunk=10):
+        self.progress = 0
         self.trial_cells = {}
         for k in self.random_cells.keys():
             _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
@@ -73,9 +76,10 @@ class Worker:
 
         _chunks = eng.util_build_chunks(list(range(num_trial)), num_chunk)
         for i, c in enumerate(_chunks):
-            t = asyncio.create_task(self.process_chunk(c), name=f'Chunk-{i+1}/{len(_chunks)}')
+            t = asyncio.create_task(self.process_chunk(c), name=f'Chunk-{i + 1}/{len(_chunks)}')
             await t
             print(t.get_name())
+            self.progress = (i + 1) / len(_chunks)
 
         return True
 
@@ -123,7 +127,15 @@ class RandomCellRemove(BaseModel):
 class MonitoringCellReqs(BaseModel):
     sheet: str
     cell: str
-    
+
+
+class ProcSimReq(BaseModel):
+    num_trial: int
+
+
+class Progress(Response):
+    progress: float | None
+
 
 app = FastAPI()
 
@@ -229,11 +241,18 @@ async def check_connection():
             return {"code": -1, "message": f"Never connected"}
 
 
-@app.get("/proc_sim")
-async def proc_sim():
-    await sess.proceed_simulation(num_trial=200)
+@app.post("/proc_sim", response_model=Response)
+async def proc_sim(proc_sim_req: ProcSimReq):
+    await sess.proceed_simulation(num_trial=proc_sim_req.num_trial)
     # sess.proceed_simulation()
     print(sess.monitoring_cells)
-    print(sess.monitoring_cells[list(sess.monitoring_cells.keys())[0]])
 
-    return True
+    return {"code": 0, "message": f"Succcess"}
+
+
+@app.get("/get_progress", response_model=Progress)
+async def get_progress():
+    if sess.progress >= 0:
+        return {"progress": sess.progress, "code": 1, "message": f"{sess.progress*100}%."}
+    else:
+        return {"progress": None, "code": 0, "message": f"Failed: Not even 0%."}
