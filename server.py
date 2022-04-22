@@ -1,4 +1,3 @@
-from math import ceil
 import datetime
 import numpy as np
 import engine as eng
@@ -15,16 +14,17 @@ class Worker:
         self.filename_ext = None
         self.wdir = './workbooks/'
         self.fullpath = None
-        self.workbook = None
-        self.worksheet = None
-        self.range = None
+
+        self.workbook_obj = None
+
         self.random_cells = {}
         self.probs = {}
+        self.trial_cells = {}
         self.monitoring_cells = {}
 
     def connect_workbook(self, fullpath):
         try:
-            self.workbook = eng.xw_load_workbooks(fullpath)
+            self.workbook_obj = eng.xw_load_workbooks(fullpath)
 
             return True
         except FileNotFoundError as ex:
@@ -43,50 +43,37 @@ class Worker:
         return True
 
     def get_selection(self):
-        _selection = eng.xw_get_selection(self.workbook).split('!')
-        self.worksheet = _selection[0].replace("'", "")
-        self.range = _selection[1]
-
-        return True
+        return eng.xw_get_selection(self.workbook_obj).replace("'", "").split('!')
 
     def check_connection(self):
         try:
-            _ = self.workbook.app
+            _ = self.workbook_obj.app
             return True
         except Exception as ex:
             print(ex)
             return False
 
-    def make_chunk(self, lst, size):
-        return list(map(
-            lambda x: lst[x * size:x * size + size], list(range(0, ceil(len(lst) / size)))))
-
-    async def process_chunk(self, chunk, sim_inputs):
+    async def process_chunk(self, chunk):
         for n in chunk:
-            for k in sim_inputs.keys():
-                _sheet = k.split('!')[0]
-                _cell = k.split('!')[1]
-
-                self.workbook.sheets(_sheet).range(_cell).value = sim_inputs[k][n]
+            for k in self.trial_cells.keys():
+                _sheet, _cell = k.split('!')
+                self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
 
             for k in self.monitoring_cells.keys():
-                _sheet = k.split('!')[0]
-                _cell = k.split('!')[1]
-
-                self.monitoring_cells[k].append(self.workbook.sheets(_sheet).range(_cell).value)
+                _sheet, _cell = k.split('!')
+                self.monitoring_cells[k].append(self.workbook_obj.sheets(_sheet).range(_cell).value)
 
         return True
 
-    async def proceed_simulation(self, iter):
-        sim_inputs = {}
+    async def proceed_simulation(self, num_trial, num_chunk=20):
+        self.trial_cells = {}
         for k in self.random_cells.keys():
             _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
-            sim_inputs[k] = np.random.choice(self.random_cells[k], iter, p=_prob)
+            self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trial, p=_prob)
 
-        _chunks = self.make_chunk(list(range(iter)), 20)
-
+        _chunks = eng.util_build_chunks(list(range(num_trial)), num_chunk)
         for i, c in enumerate(_chunks):
-            t = asyncio.create_task(self.process_chunk(c, sim_inputs), name=f'Chunk-{i}')
+            t = asyncio.create_task(self.process_chunk(c), name=f'Chunk-{i+1}/{len(_chunks)}')
             await t
             print(t.get_name())
 
@@ -169,16 +156,16 @@ async def upload_file(uploadfile: UploadFile):
 
 @app.get("/get_selection", response_model=Selection)
 async def get_selection():
-    sess.get_selection()
+    _sheet, _cell = sess.get_selection()
 
-    if ':' in sess.range:
-        return {"sheet": sess.worksheet,
+    if ':' in _cell:
+        return {"sheet": _sheet,
                 "range": "WideRange",
                 "code": 0,
                 "message": "Success: Connection. Failed: Getting selection(Too wide)."}
     else:
-        return {"sheet": sess.worksheet,
-                "range": sess.range,
+        return {"sheet": _sheet,
+                "range": _cell,
                 "code": 1,
                 "message": "Success: Connection, Getting selection."}
 
@@ -186,9 +173,9 @@ async def get_selection():
 @app.post("/prob", response_model=ProbRes)
 async def prob(prob_req: ProbReq):
     if prob_req.dist == 'normal':
-        x, prob = eng.gen_dist_normal(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
+        x, prob = eng.stat_gen_dist_normal(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     else:
-        x, prob = eng.gen_dist_uniform(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
+        x, prob = eng.stat_gen_dist_uniform(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
 
     return {"dist": prob_req.dist,
             "x": x.tolist(),
@@ -244,7 +231,7 @@ async def check_connection():
 
 @app.get("/proc_sim")
 async def proc_sim():
-    await sess.proceed_simulation(iter=200)
+    await sess.proceed_simulation(num_trial=200)
     # sess.proceed_simulation()
     print(sess.monitoring_cells)
     print(sess.monitoring_cells[list(sess.monitoring_cells.keys())[0]])

@@ -1,6 +1,12 @@
+from math import ceil
 import numpy as np
 import scipy as sp
 import xlwings as xw
+
+
+def util_build_chunks(lst, size):
+    return list(map(
+        lambda x: lst[x * size:x * size + size], list(range(0, ceil(len(lst) / size)))))
 
 
 def xw_load_workbooks(filepath):
@@ -19,28 +25,28 @@ def xw_get_selection(workbook):
     return workbook.selection.get_address(False, False, True, False)
 
 
-def min_max_normalization(x):
+def stat_min_max_norm(x):
     return (x - np.min(x)) / (np.max(x) - np.min(x))
 
 
-def standardization(x):
+def stat_standardization(x):
     return (x - np.mean(x)) / np.std(x)
 
 
-def gen_dist_uniform(start, end, num, loc=0, scale=1):
+def stat_gen_dist_uniform(start, end, num, loc=0, scale=1):
     from scipy.stats import uniform
 
     x = np.linspace(start, end, num)
-    x_n = min_max_normalization(x)
+    x_n = stat_min_max_norm(x)
 
     return x, uniform.pdf(x_n, loc, scale)
 
 
-def gen_dist_normal(start, end, num, loc=0, scale=1):
+def stat_gen_dist_normal(start, end, num, loc=0, scale=1):
     from scipy.stats import norm
 
     x = np.linspace(start, end, num)
-    x_s = standardization(x)
+    x_s = stat_standardization(x)
 
     return x, norm.pdf(x_s, loc, scale)
 
@@ -52,5 +58,5 @@ if __name__ == '__main__':
     # wb = xw_load_workbooks(test_file)
     # print(xw_get_selection(wb))
     #
-    print(gen_dist_uniform(500, 1500, 30).shape)
+    print(stat_gen_dist_uniform(500, 1500, 30).shape)
 
