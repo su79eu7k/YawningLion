@@ -247,7 +247,7 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     # sess.proceed_simulation()
     print(sess.monitoring_cells)
 
-    return {"code": 0, "message": f"Succcess"}
+    return {"code": 1, "message": f"Succcess"}
 
 
 @app.get("/get_progress", response_model=Progress)
