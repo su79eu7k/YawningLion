@@ -67,14 +67,14 @@ class Worker:
 
         return True
 
-    async def proceed_simulation(self, num_trial, num_chunk=10):
+    async def proceed_simulation(self, num_trials, num_chunk=10):
         self.progress = 0
         self.trial_cells = {}
         for k in self.random_cells.keys():
             _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
-            self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trial, p=_prob)
+            self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trials, p=_prob)
 
-        _chunks = eng.util_build_chunks(list(range(num_trial)), num_chunk)
+        _chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
         for i, c in enumerate(_chunks):
             t = asyncio.create_task(self.process_chunk(c), name=f'Chunk-{i + 1}/{len(_chunks)}')
             await t
@@ -130,7 +130,7 @@ class MonitoringCellReqs(BaseModel):
 
 
 class ProcSimReq(BaseModel):
-    num_trial: int
+    num_trials: int
 
 
 class Progress(Response):
@@ -243,7 +243,7 @@ async def check_connection():
 
 @app.post("/proc_sim", response_model=Response)
 async def proc_sim(proc_sim_req: ProcSimReq):
-    await sess.proceed_simulation(num_trial=proc_sim_req.num_trial)
+    await sess.proceed_simulation(num_trials=proc_sim_req.num_trials)
     # sess.proceed_simulation()
     print(sess.monitoring_cells)
 
