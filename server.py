@@ -23,6 +23,7 @@ class Worker:
 
         self.monitoring_cells = {}
         self.progress = None
+        self.task = None
 
     def connect_workbook(self, fullpath):
         try:
@@ -55,18 +56,6 @@ class Worker:
             print(ex)
             return False
 
-    async def process_chunk(self, chunk):
-        for n in chunk:
-            for k in self.trial_cells.keys():
-                _sheet, _cell = k.split('!')
-                self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
-
-            for k in self.monitoring_cells.keys():
-                _sheet, _cell = k.split('!')
-                self.monitoring_cells[k].append(self.workbook_obj.sheets(_sheet).range(_cell).value)
-
-        return True
-
     async def proceed_simulation(self, num_trials, num_chunk=10):
         self.progress = 0
         self.trial_cells = {}
@@ -76,9 +65,16 @@ class Worker:
 
         _chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
         for i, c in enumerate(_chunks):
-            t = asyncio.create_task(self.process_chunk(c), name=f'Chunk-{i + 1}/{len(_chunks)}')
-            await t
-            print(t.get_name())
+            await asyncio.sleep(0)
+            for n in c:
+                for k in self.trial_cells.keys():
+                    _sheet, _cell = k.split('!')
+                    self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
+
+                for k in self.monitoring_cells.keys():
+                    _sheet, _cell = k.split('!')
+                    self.monitoring_cells[k].append(self.workbook_obj.sheets(_sheet).range(_cell).value)
+
             self.progress = (i + 1) / len(_chunks)
 
         return True
@@ -243,11 +239,18 @@ async def check_connection():
 
 @app.post("/proc_sim", response_model=Response)
 async def proc_sim(proc_sim_req: ProcSimReq):
-    await sess.proceed_simulation(num_trials=proc_sim_req.num_trials)
+    sess.task = asyncio.create_task(sess.proceed_simulation(num_trials=proc_sim_req.num_trials))
+    await sess.task
     # sess.proceed_simulation()
     print(sess.monitoring_cells)
 
     return {"code": 1, "message": f"Succcess"}
+
+
+@app.get("/stop_sim", response_model=Response)
+async def stop_sim():
+    sess.task.cancel()
+    pass
 
 
 @app.get("/get_progress", response_model=Progress)
