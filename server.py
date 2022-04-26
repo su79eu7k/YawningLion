@@ -93,7 +93,6 @@ class Worker:
 
         if cancel:
             self.trial_cells = {}
-            self.monitoring_cells = {}
             self.chunk_processed = None
 
             self.chunks = None
@@ -193,7 +192,6 @@ app.add_middleware(
 @app.post("/upload_file/", response_model=Response)
 async def upload_file(uploadfile: UploadFile):
     sess.init_workbook(uploadfile)
-    # await asyncio.to_thread(sess.init_workbook, uploadfile=uploadfile)
     sess.connect_workbook(sess.fullpath)
     sess.get_selection()
 
