@@ -291,29 +291,26 @@ async def proc_sim(proc_sim_req: ProcSimReq):
 
 @app.get("/cancel_sim", response_model=Response)
 async def cancel_sim():
-    res = await asyncio.create_task(sess.stop_simulation(cancel=True))
-    if res:
-        return {"code": 1, "message": f"Succcess"}
-    else:
-        return {"code": 0, "message": f"Failed"}
+    res = asyncio.create_task(sess.stop_simulation(cancel=True))
+    await res
+
+    return {"code": 1, "message": f"Succcess"}
 
 
 @app.get("/pause_sim", response_model=Response)
 async def pause_sim():
-    res = await asyncio.create_task(sess.stop_simulation(cancel=False))
-    if res:
-        return {"code": 1, "message": f"Succcess"}
-    else:
-        return {"code": 0, "message": f"Failed"}
+    res = asyncio.create_task(sess.stop_simulation(cancel=False))
+    await res
+
+    return {"code": 1, "message": f"Succcess"}
 
 
 @app.get("/resume_sim", response_model=Response)
 async def resume_sim():
-    res = await asyncio.create_task(sess.resume_simulation())
-    if res:
-        return {"code": 1, "message": f"Succcess"}
-    else:
-        return {"code": 0, "message": f"Failed"}
+    res = asyncio.create_task(sess.resume_simulation())
+    await res
+
+    return {"code": 1, "message": f"Succcess"}
 
 
 @app.get("/get_progress", response_model=Progress)
