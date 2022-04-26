@@ -322,7 +322,7 @@ async def resume_sim():
 
 @app.get("/get_progress", response_model=Progress)
 async def get_progress():
-    if sess.progress >= 0:
-        return {"progress": sess.progress, "code": 1, "message": f"{sess.progress * 100}%."}
-    else:
+    if sess.progress is None:
         return {"progress": None, "code": 0, "message": f"Failed: Not even 0%."}
+    else:
+        return {"progress": sess.progress, "code": 1, "message": f"{sess.progress * 100}%."}
