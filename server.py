@@ -20,8 +20,10 @@ class Worker:
         self.random_cells = {}
         self.probs = {}
         self.trial_cells = {}
-
         self.monitoring_cells = {}
+        self.chunk_processed = None
+
+        self.chunks = None
         self.progress = None
         self.task = None
 
@@ -56,15 +58,20 @@ class Worker:
             print(ex)
             return False
 
-    async def proceed_simulation(self, num_trials, num_chunk=10):
-        self.progress = 0
-        self.trial_cells = {}
+    def random_sampling(self, num_trials):
         for k in self.random_cells.keys():
             _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
             self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trials, p=_prob)
 
-        _chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
-        for i, c in enumerate(_chunks):
+        return True
+
+    async def run_simulation(self, num_trials, num_chunk=10):
+        self.random_sampling(num_trials=num_trials)
+        self.chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
+
+        self.progress = 0
+        self.chunk_processed = 0
+        for c in self.chunks:
             await asyncio.sleep(0)
             for n in c:
                 for k in self.trial_cells.keys():
@@ -74,8 +81,43 @@ class Worker:
                 for k in self.monitoring_cells.keys():
                     _sheet, _cell = k.split('!')
                     self.monitoring_cells[k].append(self.workbook_obj.sheets(_sheet).range(_cell).value)
+            self.chunk_processed += 1
+            self.progress = self.chunk_processed / len(self.chunks)
 
-            self.progress = (i + 1) / len(_chunks)
+        return True
+
+    async def stop_simulation(self, cancel=False):
+        sess.task.cancel()
+        while not sess.task.cancelled():
+            await asyncio.sleep(.1)
+
+        if cancel:
+            self.trial_cells = {}
+            self.monitoring_cells = {}
+            self.chunk_processed = None
+
+            self.chunks = None
+            self.progress = None
+            self.task = None
+
+        return True
+
+    async def resume_simulation(self):
+        while not sess.task.cancelled():
+            await asyncio.sleep(.1)
+
+        for c in self.chunks[self.chunk_processed:]:
+            await asyncio.sleep(0)
+            for n in c:
+                for k in self.trial_cells.keys():
+                    _sheet, _cell = k.split('!')
+                    self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
+
+                for k in self.monitoring_cells.keys():
+                    _sheet, _cell = k.split('!')
+                    self.monitoring_cells[k].append(self.workbook_obj.sheets(_sheet).range(_cell).value)
+            self.chunk_processed += 1
+            self.progress = self.chunk_processed / len(self.chunks)
 
         return True
 
@@ -239,7 +281,7 @@ async def check_connection():
 
 @app.post("/proc_sim", response_model=Response)
 async def proc_sim(proc_sim_req: ProcSimReq):
-    sess.task = asyncio.create_task(sess.proceed_simulation(num_trials=proc_sim_req.num_trials))
+    sess.task = asyncio.create_task(sess.run_simulation(num_trials=proc_sim_req.num_trials))
     await sess.task
     # sess.proceed_simulation()
     print(sess.monitoring_cells)
@@ -247,15 +289,36 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     return {"code": 1, "message": f"Succcess"}
 
 
-@app.get("/stop_sim", response_model=Response)
-async def stop_sim():
-    sess.task.cancel()
-    pass
+@app.get("/cancel_sim", response_model=Response)
+async def cancel_sim():
+    res = await asyncio.create_task(sess.stop_simulation(cancel=True))
+    if res:
+        return {"code": 1, "message": f"Succcess"}
+    else:
+        return {"code": 0, "message": f"Failed"}
+
+
+@app.get("/pause_sim", response_model=Response)
+async def pause_sim():
+    res = await asyncio.create_task(sess.stop_simulation(cancel=False))
+    if res:
+        return {"code": 1, "message": f"Succcess"}
+    else:
+        return {"code": 0, "message": f"Failed"}
+
+
+@app.get("/resume_sim", response_model=Response)
+async def resume_sim():
+    res = await asyncio.create_task(sess.resume_simulation())
+    if res:
+        return {"code": 1, "message": f"Succcess"}
+    else:
+        return {"code": 0, "message": f"Failed"}
 
 
 @app.get("/get_progress", response_model=Progress)
 async def get_progress():
     if sess.progress >= 0:
-        return {"progress": sess.progress, "code": 1, "message": f"{sess.progress*100}%."}
+        return {"progress": sess.progress, "code": 1, "message": f"{sess.progress * 100}%."}
     else:
         return {"progress": None, "code": 0, "message": f"Failed: Not even 0%."}
