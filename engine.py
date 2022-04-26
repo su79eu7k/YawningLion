@@ -51,6 +51,18 @@ def stat_gen_dist_normal(start, end, num, loc=0, scale=1):
     return x, norm.pdf(x_s, loc, scale)
 
 
+def stat_gen_dist_exponential(start, end, num, loc=0, scale=1):
+    from scipy.stats import expon
+
+    x = np.linspace(start, end, num)
+    x_s = stat_standardization(x)
+
+    return x, expon.pdf(x_s, loc, scale)
+
+
+# TODO poisson, beta
+
+
 if __name__ == '__main__':
     # # test_file = 'D:/Localhome/sekim/OneDrive - ZF Friedrichshafen AG/Desktop/NPV concept.xlsx'
     # test_file = 'C:/Users/su79e/Desktop/test.xlsx'
