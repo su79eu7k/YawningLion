@@ -103,9 +103,6 @@ class Worker:
         return True
 
     async def resume_simulation(self):
-        while not sess.task.cancelled():
-            await asyncio.sleep(.1)
-
         for c in self.chunks[self.chunk_processed:]:
             await asyncio.sleep(0)
             for n in c:
@@ -307,8 +304,8 @@ async def pause_sim():
 
 @app.get("/resume_sim", response_model=Response)
 async def resume_sim():
-    res = asyncio.create_task(sess.resume_simulation())
-    await res
+    sess.task = asyncio.create_task(sess.resume_simulation())
+    await sess.task
 
     return {"code": 1, "message": f"Succcess"}
 
