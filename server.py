@@ -72,7 +72,11 @@ class Worker:
         self.progress = 0
         self.chunk_processed = 0
         for c in self.chunks:
-            await asyncio.sleep(0)
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                print(f'Cancelled at Chunk-{self.chunk_processed}.')
+                raise
             for n in c:
                 for k in self.trial_cells.keys():
                     _sheet, _cell = k.split('!')
@@ -103,7 +107,11 @@ class Worker:
 
     async def resume_simulation(self):
         for c in self.chunks[self.chunk_processed:]:
-            await asyncio.sleep(0)
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                print(f'Cancelled at Chunk-{self.chunk_processed}.')
+                raise
             for n in c:
                 for k in self.trial_cells.keys():
                     _sheet, _cell = k.split('!')
@@ -277,9 +285,10 @@ async def check_connection():
 @app.post("/proc_sim", response_model=Response)
 async def proc_sim(proc_sim_req: ProcSimReq):
     sess.task = asyncio.create_task(sess.run_simulation(num_trials=proc_sim_req.num_trials))
-    await sess.task
-    # sess.proceed_simulation()
-    print(sess.monitoring_cells)
+    try:
+        await sess.task
+    except asyncio.CancelledError:
+        print('Initial task cancelled.')
 
     return {"code": 1, "message": f"Succcess"}
 
@@ -303,7 +312,10 @@ async def pause_sim():
 @app.get("/resume_sim", response_model=Response)
 async def resume_sim():
     sess.task = asyncio.create_task(sess.resume_simulation())
-    await sess.task
+    try:
+        await sess.task
+    except asyncio.CancelledError:
+        print('Resumed task cancelled.')
 
     return {"code": 1, "message": f"Succcess"}
 
