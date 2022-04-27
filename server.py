@@ -227,7 +227,7 @@ async def get_selection():
 async def prob(prob_req: ProbReq):
     if prob_req.dist in ['norm', 'normal', 'gauss', 'gaussian']:
         x, prob = eng.stat_gen_dist_normal(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
-    elif prob_req.dist in ['expon', 'exponential']:
+    elif prob_req.dist in ['exp', 'expon', 'exponential']:
         x, prob = eng.stat_gen_dist_exponential(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     else:
         x, prob = eng.stat_gen_dist_uniform(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
