@@ -181,6 +181,13 @@ app.add_middleware(
 )
 
 
+@app.get("/reset", response_model=Response)
+async def reset():
+    sess.__init__()
+
+    return {"code": 1, "message": "Success: Session re-initiated."}
+
+
 @app.post("/upload_file/", response_model=Response)
 async def upload_file(uploadfile: UploadFile):
     sess.init_workbook(uploadfile)
