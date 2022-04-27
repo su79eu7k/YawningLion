@@ -54,12 +54,19 @@ def stat_gen_dist_normal(start, end, num, loc=0, scale=1):
 def stat_gen_dist_exponential(start, end, num, loc=0, scale=1):
     from scipy.stats import expon
 
-    x_n = np.linspace(start, end, num)
+    x = np.linspace(start, end, num)
+    x_n = stat_min_max_norm(x) * 5  # 0 - 5 minmax for expon. specific normalization.
 
-    return x, expon.pdf(x_n, loc, scale)
+    return x_n, expon.pdf(x_n, loc, scale)
 
 
-# TODO poisson, beta
+def stat_gen_dist_beta(start, end, num, a, b, loc=0, scale=1):
+    from scipy.stats import beta
+
+    x = np.linspace(start, end, num)
+    x_n = stat_min_max_norm(x)
+
+    return x_n, beta.pdf(x_n, a, b, loc, scale)
 
 
 if __name__ == '__main__':

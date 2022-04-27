@@ -65,13 +65,15 @@ class Worker:
 
         return True
 
-    async def run_simulation(self, num_trials, num_chunk=10):
-        self.random_sampling(num_trials=num_trials)
-        self.chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
+    async def run_simulation(self, num_trials=2000, num_chunk=10, resume=False):
+        if not resume:
+            self.random_sampling(num_trials=num_trials)
+            self.chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
 
-        self.progress = 0
-        self.chunk_processed = 0
-        for c in self.chunks:
+            self.progress = 0
+            self.chunk_processed = 0
+
+        for c in self.chunks[self.chunk_processed:]:
             try:
                 await asyncio.sleep(0)
             except asyncio.CancelledError:
@@ -105,26 +107,6 @@ class Worker:
 
         return True
 
-    async def resume_simulation(self):
-        for c in self.chunks[self.chunk_processed:]:
-            try:
-                await asyncio.sleep(0)
-            except asyncio.CancelledError:
-                print(f'Cancelled at Chunk-{self.chunk_processed}.')
-                raise
-            for n in c:
-                for k in self.trial_cells.keys():
-                    _sheet, _cell = k.split('!')
-                    self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
-
-                for k in self.monitoring_cells.keys():
-                    _sheet, _cell = k.split('!')
-                    self.monitoring_cells[k].append(self.workbook_obj.sheets(_sheet).range(_cell).value)
-            self.chunk_processed += 1
-            self.progress = self.chunk_processed / len(self.chunks)
-
-        return True
-
 
 sess = Worker()
 
@@ -144,6 +126,8 @@ class ProbReq(BaseModel):
     end: int | float
     step: int
     dist: str
+    a: int | float | None
+    b: int | float | None
     loc: bool = 0
     scale: bool = 1
 
@@ -226,11 +210,17 @@ async def get_selection():
 @app.post("/prob", response_model=ProbRes)
 async def prob(prob_req: ProbReq):
     if prob_req.dist in ['norm', 'normal', 'gauss', 'gaussian']:
-        x, prob = eng.stat_gen_dist_normal(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
+        x, prob = eng.stat_gen_dist_normal(
+            prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['exp', 'expon', 'exponential']:
-        x, prob = eng.stat_gen_dist_exponential(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
+        x, prob = eng.stat_gen_dist_exponential(
+            prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
+    elif prob_req.dist in ['beta']:
+        x, prob = eng.stat_gen_dist_beta(
+            prob_req.start, prob_req.end, prob_req.step, prob_req.a, prob_req.b, prob_req.loc, prob_req.scale)
     else:
-        x, prob = eng.stat_gen_dist_uniform(prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
+        x, prob = eng.stat_gen_dist_uniform(
+            prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
 
     return {"dist": prob_req.dist,
             "x": x.tolist(),
@@ -313,7 +303,7 @@ async def pause_sim():
 
 @app.get("/resume_sim", response_model=Response)
 async def resume_sim():
-    sess.task = asyncio.create_task(sess.resume_simulation())
+    sess.task = asyncio.create_task(sess.run_simulation(resume=True))
     try:
         await sess.task
     except asyncio.CancelledError:
