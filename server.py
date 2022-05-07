@@ -163,6 +163,20 @@ class Progress(Response):
     progress: float | None
 
 
+class PreviewDataReq(BaseModel):
+    x: str
+    y: str
+
+
+class PreviewDataXY(BaseModel):
+    x: float
+    y: float
+
+
+class PreviewDataRes(Response):
+    xy: list[PreviewDataXY]
+
+
 app = FastAPI()
 
 origins = [
@@ -325,3 +339,29 @@ async def get_progress():
         return {"progress": None, "code": 0, "message": f"Failed: Not even 0%."}
     else:
         return {"progress": sess.progress, "code": 1, "message": f"{sess.progress * 100}%."}
+
+
+@app.post("/preview_data", response_model=PreviewDataRes)
+async def preview_data(preview_data_req: PreviewDataReq):
+    _type_x, _x = preview_data_req.x.split("'")
+    _type_y, _y = preview_data_req.y.split("'")
+
+    x = []
+    if _type_x == 'rand':
+        x = sess.trial_cells[_x].tolist()
+    elif _type_x == 'monit':
+        x = sess.monitoring_cells[_x]
+
+    y = []
+    if _type_y == 'rand':
+        y = sess.trial_cells[_y].tolist()
+    elif _type_y == 'monit':
+        y = sess.monitoring_cells[_y]
+
+    _c = min(len(x), len(y))
+    x = x[:_c]
+    y = y[:_c]
+
+    xy = [{"x": n[0], "y": n[1]} for n in zip(x, y)]
+
+    return {"code": 1, "message": f"Succcess", "xy": xy}
