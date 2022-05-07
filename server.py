@@ -68,10 +68,10 @@ class Worker:
     async def run_simulation(self, num_trials=2000, num_chunk=10, resume=False):
         if not resume:
             # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
+            self.random_sampling(num_trials=num_trials)
             for k in self.monitoring_cells.keys():
                 self.monitoring_cells[k] = []
 
-            self.random_sampling(num_trials=num_trials)
             self.chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
 
             self.progress = 0
