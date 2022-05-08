@@ -173,8 +173,8 @@ class PreviewDataReq(BaseModel):
 
 
 class PreviewDataXY(BaseModel):
-    x: float
-    y: float
+    x: float | None = None
+    y: float | None = None
 
 
 class PreviewDataRes(Response):
