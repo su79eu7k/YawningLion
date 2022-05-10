@@ -1,3 +1,4 @@
+import time
 import datetime
 import numpy as np
 import engine as eng
@@ -26,6 +27,8 @@ class Worker:
         self.chunks = None
         self.progress = None
         self.task = None
+
+        self.throughput = None
 
     def connect_workbook(self, fullpath):
         try:
@@ -58,28 +61,47 @@ class Worker:
             print(ex)
             return False
 
-    def random_sampling(self, num_trials):
+    def run_benchmark(self, num_trials=20):
+        # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
         for k in self.random_cells.keys():
             _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
             self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trials, p=_prob)
 
+        for k in self.monitoring_cells.keys():
+            self.monitoring_cells[k] = []
+
+        time_start = time.time()
+        for n in range(num_trials):
+            for k in self.trial_cells.keys():
+                _sheet, _cell = k.split('!')
+                self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
+
+            for k in self.monitoring_cells.keys():
+                _sheet, _cell = k.split('!')
+                self.monitoring_cells[k].append(self.workbook_obj.sheets(_sheet).range(_cell).value)
+        time_elapsed = time.time() - time_start
+        self.throughput = num_trials / time_elapsed
+
         return True
 
-    async def run_simulation(self, num_trials=2000, num_chunk=20, resume=False):
+    async def run_simulation(self, async_sleep=0.1, num_chunk=20, num_trials=2000, resume=False):
         if not resume:
             # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
-            self.random_sampling(num_trials=num_trials)
+            for k in self.random_cells.keys():
+                _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
+                self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trials, p=_prob)
+
             for k in self.monitoring_cells.keys():
                 self.monitoring_cells[k] = []
 
             self.chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
 
-            self.progress = 0
             self.chunk_processed = 0
+            self.progress = 0
 
         for c in self.chunks[self.chunk_processed:]:
             try:
-                await asyncio.sleep(.1)
+                await asyncio.sleep(async_sleep)
             except asyncio.CancelledError:
                 print(f'Cancelled at Chunk-{self.chunk_processed}.')
                 raise
@@ -301,7 +323,16 @@ async def check_connection():
 async def proc_sim(proc_sim_req: ProcSimReq):
     sess.workbook_obj.app.screen_updating = False
 
-    sess.task = asyncio.create_task(sess.run_simulation(num_trials=proc_sim_req.num_trials))
+    sess.run_benchmark()
+    _async_sleep = 0.05
+    if sess.throughput:
+        _num_chunk = round(sess.throughput / (1 / _async_sleep))
+    else:
+        _num_chunk = 20
+
+    print(_num_chunk)
+
+    sess.task = asyncio.create_task(sess.run_simulation(async_sleep=_async_sleep, num_chunk=_num_chunk, num_trials=proc_sim_req.num_trials))
     try:
         await sess.task
     except asyncio.CancelledError:
