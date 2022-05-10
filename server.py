@@ -65,7 +65,7 @@ class Worker:
 
         return True
 
-    async def run_simulation(self, num_trials=2000, num_chunk=10, resume=False):
+    async def run_simulation(self, num_trials=2000, num_chunk=5, resume=False):
         if not resume:
             # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
             self.random_sampling(num_trials=num_trials)
@@ -329,16 +329,22 @@ async def pause_sim():
     res = asyncio.create_task(sess.stop_simulation(cancel=False))
     await res
 
+    sess.workbook_obj.app.screen_updating = True
+
     return {"code": 1, "message": f"Succcess"}
 
 
 @app.get("/resume_sim", response_model=Response)
 async def resume_sim():
+    sess.workbook_obj.app.screen_updating = False
+
     sess.task = asyncio.create_task(sess.run_simulation(resume=True))
     try:
         await sess.task
     except asyncio.CancelledError:
         print('Resumed task cancelled.')
+
+    sess.workbook_obj.app.screen_updating = True
 
     return {"code": 1, "message": f"Succcess"}
 
