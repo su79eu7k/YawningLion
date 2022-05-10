@@ -65,7 +65,7 @@ class Worker:
 
         return True
 
-    async def run_simulation(self, num_trials=2000, num_chunk=5, resume=False):
+    async def run_simulation(self, num_trials=2000, num_chunk=20, resume=False):
         if not resume:
             # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
             self.random_sampling(num_trials=num_trials)

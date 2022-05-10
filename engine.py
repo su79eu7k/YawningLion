@@ -1,6 +1,6 @@
 from math import ceil
 import numpy as np
-import scipy as sp
+from scipy.stats import uniform, norm, expon, beta
 import xlwings as xw
 
 
@@ -34,8 +34,6 @@ def stat_standardization(x):
 
 
 def stat_gen_dist_uniform(start, end, num, loc=0, scale=1):
-    from scipy.stats import uniform
-
     x = np.linspace(start, end, num)
     x_n = stat_min_max_norm(x)
 
@@ -43,8 +41,6 @@ def stat_gen_dist_uniform(start, end, num, loc=0, scale=1):
 
 
 def stat_gen_dist_normal(start, end, num, loc=0, scale=1):
-    from scipy.stats import norm
-
     x = np.linspace(start, end, num)
     x_s = stat_standardization(x)
 
@@ -52,8 +48,6 @@ def stat_gen_dist_normal(start, end, num, loc=0, scale=1):
 
 
 def stat_gen_dist_exponential(start, end, num, loc=0, scale=1):
-    from scipy.stats import expon
-
     x = np.linspace(start, end, num)
     x_n = stat_min_max_norm(x) * 5  # 0 - 5 minmax for expon. specific normalization.
 
@@ -61,8 +55,6 @@ def stat_gen_dist_exponential(start, end, num, loc=0, scale=1):
 
 
 def stat_gen_dist_beta(start, end, num, a, b, loc=0, scale=1):
-    from scipy.stats import beta
-
     x = np.linspace(start, end, num)
     x_n = stat_min_max_norm(x)
 
