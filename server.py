@@ -79,7 +79,7 @@ class Worker:
 
         for c in self.chunks[self.chunk_processed:]:
             try:
-                await asyncio.sleep(0)
+                await asyncio.sleep(.1)
             except asyncio.CancelledError:
                 print(f'Cancelled at Chunk-{self.chunk_processed}.')
                 raise
@@ -99,7 +99,7 @@ class Worker:
     async def stop_simulation(self, cancel=False):
         sess.task.cancel()
         while not sess.task.cancelled():
-            await asyncio.sleep(.1)
+            await asyncio.sleep(.5)
 
         if cancel:
             self.trial_cells = {}
