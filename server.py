@@ -301,11 +301,15 @@ async def check_connection():
 
 @app.post("/proc_sim", response_model=Response)
 async def proc_sim(proc_sim_req: ProcSimReq):
+    sess.workbook_obj.app.screen_updating = False
+
     sess.task = asyncio.create_task(sess.run_simulation(num_trials=proc_sim_req.num_trials))
     try:
         await sess.task
     except asyncio.CancelledError:
         print('Initial task cancelled.')
+
+    sess.workbook_obj.app.screen_updating = True
 
     return {"code": 1, "message": f"Succcess"}
 
@@ -314,6 +318,8 @@ async def proc_sim(proc_sim_req: ProcSimReq):
 async def cancel_sim():
     res = asyncio.create_task(sess.stop_simulation(cancel=True))
     await res
+
+    sess.workbook_obj.app.screen_updating = True
 
     return {"code": 1, "message": f"Succcess"}
 
