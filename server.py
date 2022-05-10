@@ -220,16 +220,14 @@ async def upload_file(uploadfile: UploadFile):
 async def get_selection():
     _sheet, _cell = sess.get_selection()
 
+    # Wide-Range handling.
     if ':' in _cell:
-        return {"sheet": _sheet,
-                "range": "WideRange",
-                "code": 0,
-                "message": "Success: Connection. Failed: Getting selection(Too wide)."}
-    else:
-        return {"sheet": _sheet,
-                "range": _cell,
-                "code": 1,
-                "message": "Success: Connection, Getting selection."}
+        _cell = _cell.split(':')[0]
+
+    return {"sheet": _sheet,
+            "range": _cell,
+            "code": 1,
+            "message": "Success: Connection, Getting selection."}
 
 
 @app.post("/prob", response_model=ProbRes)
