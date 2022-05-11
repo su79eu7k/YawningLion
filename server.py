@@ -135,6 +135,7 @@ class Worker:
 
 
 sess = Worker()
+sess_lock = asyncio.Lock()
 
 
 class Response(BaseModel):
@@ -223,16 +224,18 @@ app.add_middleware(
 
 @app.get("/reset", response_model=Response)
 async def reset():
-    sess.__init__()
+    async with sess_lock:
+        sess.__init__()
 
     return {"code": 1, "message": "Success: Session re-initiated."}
 
 
 @app.post("/upload_file/", response_model=Response)
 async def upload_file(uploadfile: UploadFile):
-    sess.init_workbook(uploadfile)
-    sess.connect_workbook(sess.fullpath)
-    sess.get_selection()
+    async with sess_lock:
+        sess.init_workbook(uploadfile)
+        sess.connect_workbook(sess.fullpath)
+        sess.get_selection()
 
     return {"code": 1,
             "message": "Success: Workbook initiation, Connection, Getting selection."}
@@ -276,34 +279,38 @@ async def prob(prob_req: ProbReq):
 
 @app.post("/add_random_cell", response_model=Response)
 async def add_random_cell(random_cell_add: RandomCellAdd):
-    _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
-    sess.random_cells[_key] = random_cell_add.x
-    sess.probs[_key] = random_cell_add.prob
+    async with sess_lock:
+        _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
+        sess.random_cells[_key] = random_cell_add.x
+        sess.probs[_key] = random_cell_add.prob
 
     return {"code": 1, "message": f"Success: Assigned."}
 
 
 @app.post("/remove_random_cell", response_model=Response)
 async def remove_random_cell(random_cell_remove: RandomCellRemove):
-    _key = '!'.join([random_cell_remove.sheet, random_cell_remove.cell])
-    del sess.random_cells[_key]
-    del sess.probs[_key]
+    async with sess_lock:
+        _key = '!'.join([random_cell_remove.sheet, random_cell_remove.cell])
+        del sess.random_cells[_key]
+        del sess.probs[_key]
 
     return {"code": 1, "message": f"Success: Unassigned."}
 
 
 @app.post("/add_monitoring_cell", response_model=Response)
 async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
-    _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
-    sess.monitoring_cells[_key] = []
+    async with sess_lock:
+        _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
+        sess.monitoring_cells[_key] = []
 
     return {"code": 1, "message": f"Success: Assigned."}
 
 
 @app.post("/remove_monitoring_cell", response_model=Response)
 async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
-    _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
-    del sess.monitoring_cells[_key]
+    async with sess_lock:
+        _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
+        del sess.monitoring_cells[_key]
 
     return {"code": 1, "message": f"Success: Assigned."}
 
