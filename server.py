@@ -324,9 +324,12 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     sess.workbook_obj.app.screen_updating = False
 
     sess.run_benchmark()
-    _async_sleep = 0.05
+
+    # API calls: 2 times / 3 sec, takes 5ms each.
+    _async_sleep = .01
+    _max_blocking = 1.5
     if sess.throughput:
-        _num_chunk = round(sess.throughput / (1 / _async_sleep))
+        _num_chunk = round(sess.throughput / (1 / _max_blocking))
     else:
         _num_chunk = 20
 
