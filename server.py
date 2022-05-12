@@ -53,6 +53,11 @@ class Worker:
     def get_selection(self):
         return eng.xw_get_selection(self.workbook_obj).replace("'", "").split('!')
 
+    def select_with_focus(self, address_sheet, address_cell):
+        eng.xw_select_with_focus(self.workbook_obj, address_sheet, address_cell)
+
+        return True
+
     def check_connection(self):
         try:
             _ = self.workbook_obj.app
@@ -253,6 +258,15 @@ async def get_selection():
             "range": _cell,
             "code": 1,
             "message": "Success: Connection, Getting selection."}
+
+
+@app.get("/select_with_focus/", response_model=Response)
+async def select_with_focus(sheet: str, cell: str):
+    print(sess.workbook_obj)
+    print(sess.workbook_obj.app)
+    sess.select_with_focus(sheet, cell)
+
+    return {"code": 1, "message": "Success."}
 
 
 @app.post("/prob", response_model=ProbRes)

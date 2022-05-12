@@ -14,15 +14,23 @@ def xw_load_workbooks(filepath):
 
 
 def xw_activate_workbook(func):
-    def wrapper(workbook_to_activate):
+    def wrapper(workbook_to_activate, *args, **kwargs):
         workbook_to_activate.activate()
-        return func(workbook_to_activate)
+        return func(workbook_to_activate, *args, **kwargs)
     return wrapper
 
 
 @xw_activate_workbook
 def xw_get_selection(workbook):
     return workbook.selection.get_address(False, False, True, False)
+
+
+@xw_activate_workbook
+def xw_select_with_focus(workbook, address_sheet, address_cell):
+    workbook.sheets[address_sheet].range(address_cell).select()
+    workbook.activate(steal_focus=True)
+
+    return True
 
 
 def stat_min_max_norm(x):
