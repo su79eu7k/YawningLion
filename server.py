@@ -351,7 +351,7 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     _async_sleep = .02
     _max_blocking = 1.5
     if sess.throughput:
-        _num_chunk = max(round(sess.throughput / (1 / _max_blocking)), 5)
+        _num_chunk = max(round(sess.throughput / (1 / _max_blocking)), 1)
     else:
         _num_chunk = 5
 
