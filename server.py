@@ -80,6 +80,7 @@ class Worker:
             for k in self.trial_cells.keys():
                 _sheet, _cell = k.split('!')
                 self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
+            self.workbook_obj.app.calculate()
 
             for k in self.monitoring_cells.keys():
                 _sheet, _cell = k.split('!')
@@ -114,6 +115,7 @@ class Worker:
                 for k in self.trial_cells.keys():
                     _sheet, _cell = k.split('!')
                     self.workbook_obj.sheets(_sheet).range(_cell).value = self.trial_cells[k][n]
+                self.workbook_obj.app.calculate()
 
                 for k in self.monitoring_cells.keys():
                     _sheet, _cell = k.split('!')
@@ -262,8 +264,6 @@ async def get_selection():
 
 @app.get("/select_with_focus/", response_model=Response)
 async def select_with_focus(sheet: str, cell: str):
-    print(sess.workbook_obj)
-    print(sess.workbook_obj.app)
     sess.select_with_focus(sheet, cell)
 
     return {"code": 1, "message": "Success."}
@@ -343,16 +343,17 @@ async def check_connection():
 @app.post("/proc_sim", response_model=Response)
 async def proc_sim(proc_sim_req: ProcSimReq):
     sess.workbook_obj.app.screen_updating = False
+    sess.workbook_obj.app.calculation = 'manual'
 
     sess.run_benchmark()
 
     # API calls: 2 times / 3 sec, takes 5ms each.
-    _async_sleep = .01
+    _async_sleep = .02
     _max_blocking = 1.5
     if sess.throughput:
-        _num_chunk = round(sess.throughput / (1 / _max_blocking))
+        _num_chunk = max(round(sess.throughput / (1 / _max_blocking)), 5)
     else:
-        _num_chunk = 20
+        _num_chunk = 5
 
     print(_num_chunk)
 
@@ -363,6 +364,7 @@ async def proc_sim(proc_sim_req: ProcSimReq):
         print('Initial task cancelled.')
 
     sess.workbook_obj.app.screen_updating = True
+    sess.workbook_obj.app.calculation = 'automatic'
 
     return {"code": 1, "message": f"Succcess"}
 
@@ -373,6 +375,7 @@ async def cancel_sim():
     await res
 
     sess.workbook_obj.app.screen_updating = True
+    sess.workbook_obj.app.calculation = 'automatic'
 
     return {"code": 1, "message": f"Succcess"}
 
@@ -383,6 +386,7 @@ async def pause_sim():
     await res
 
     sess.workbook_obj.app.screen_updating = True
+    sess.workbook_obj.app.calculation = 'automatic'
 
     return {"code": 1, "message": f"Succcess"}
 
@@ -390,6 +394,7 @@ async def pause_sim():
 @app.get("/resume_sim", response_model=Response)
 async def resume_sim():
     sess.workbook_obj.app.screen_updating = False
+    sess.workbook_obj.app.calculation = 'manual'
 
     sess.task = asyncio.create_task(sess.run_simulation(resume=True))
     try:
@@ -398,6 +403,7 @@ async def resume_sim():
         print('Resumed task cancelled.')
 
     sess.workbook_obj.app.screen_updating = True
+    sess.workbook_obj.app.calculation = 'automatic'
 
     return {"code": 1, "message": f"Succcess"}
 
