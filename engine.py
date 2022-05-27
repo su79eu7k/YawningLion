@@ -1,5 +1,6 @@
 from math import ceil
 import numpy as np
+from numpy import inf
 from scipy.stats import uniform, norm, expon, beta
 import xlwings as xw
 
@@ -66,7 +67,16 @@ def stat_gen_dist_beta(start, end, num, a, b, loc=0, scale=1):
     x = np.linspace(start, end, num)
     x_n = stat_min_max_norm(x)
 
-    return x, beta.pdf(x_n, a, b, loc, scale)
+    print(x_n)
+    print(a, b)
+
+    _ret = beta.pdf(x_n, min(3., a), min(3., b), loc, scale)
+    _ret[_ret == -inf] = 0.
+    _ret[_ret == inf] = 3.
+
+    print(_ret)
+
+    return x, _ret
 
 
 if __name__ == '__main__':

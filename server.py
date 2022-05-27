@@ -160,10 +160,10 @@ class ProbReq(BaseModel):
     end: int | float
     step: int
     dist: str
-    a: int | float | None
-    b: int | float | None
-    loc: bool = 0
-    scale: bool = 1
+    a: float | None
+    b: float | None
+    loc: float = 0.
+    scale: float = 1.
 
 
 class ProbRes(Response):
