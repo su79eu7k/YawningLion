@@ -53,7 +53,9 @@ def stat_gen_dist_normal(start, end, num, loc=0, scale=1):
     x = np.linspace(start, end, num)
     x_s = stat_standardization(x)
 
-    return x, norm.pdf(x_s, loc, scale)
+    _ret = norm.pdf(x_s, loc, scale)
+
+    return x, _ret * (1. / np.max(_ret))
 
 
 def stat_gen_dist_exponential(start, end, num, loc=0, scale=1):
