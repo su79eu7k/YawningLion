@@ -67,16 +67,15 @@ def stat_gen_dist_beta(start, end, num, a, b, loc=0, scale=1):
     x = np.linspace(start, end, num)
     x_n = stat_min_max_norm(x)
 
-    print(x_n)
-    print(a, b)
-
-    _ret = beta.pdf(x_n, min(3., a), min(3., b), loc, scale)
-    _ret[_ret == -inf] = 0.
-    _ret[_ret == inf] = 3.
-
-    print(_ret)
-
-    return x, _ret
+    if a == 1 and b == 1:
+        return x, uniform.pdf(x_n, loc, scale)
+    else:
+        _ret = beta.pdf(x_n, a, b, loc, scale)
+        _idx_inf = np.isinf(_ret)
+        if _idx_inf.any():
+            return x[_idx_inf], np.full(x[_idx_inf].shape, 1)
+        else:
+            return x, _ret
 
 
 if __name__ == '__main__':
