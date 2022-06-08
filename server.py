@@ -156,14 +156,14 @@ class Selection(Response):
 
 
 class ProbReq(BaseModel):
+    dist: str
     start: int | float
     end: int | float
     step: int
-    dist: str
+    loc: float | None
+    scale: float | None
     a: float | None
     b: float | None
-    loc: float = 0.
-    scale: float = 1.
 
 
 class ProbRes(Response):

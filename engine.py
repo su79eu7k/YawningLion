@@ -38,31 +38,40 @@ def stat_min_max_norm(x):
     return (x - np.min(x)) / (np.max(x) - np.min(x))
 
 
-def stat_standardization(x):
-    return (x - np.mean(x)) / np.std(x)
-
-
-def stat_gen_dist_uniform(start, end, num, loc=0, scale=1):
+def stat_gen_dist_uniform(start, end, num, loc, scale):
     x = np.linspace(start, end, num)
-    x_n = stat_min_max_norm(x)
 
-    return x, uniform.pdf(x_n, loc, scale)
+    if not loc:
+        loc = x[0]
+
+    if not scale:
+        scale = x[-1] - x[0]
+
+    return x, uniform.pdf(x, loc, scale)
 
 
-def stat_gen_dist_normal(start, end, num, loc=0, scale=1):
+def stat_gen_dist_normal(start, end, num, loc, scale):
     x = np.linspace(start, end, num)
-    x_s = stat_standardization(x)
 
-    _ret = norm.pdf(x_s, loc, scale)
+    if not loc:
+        loc = x.mean()
 
-    return x, _ret * (1. / np.max(_ret))
+    if not scale:
+        scale = x.std()
+
+    return x, norm.pdf(x, loc=loc, scale=scale)
 
 
-def stat_gen_dist_exponential(start, end, num, loc=0, scale=1):
+def stat_gen_dist_exponential(start, end, num, loc, scale):
     x = np.linspace(start, end, num)
-    x_n = stat_min_max_norm(x) * 5  # 0 - 5 minmax for expon. specific normalization.
 
-    return x, expon.pdf(x_n, loc, scale)
+    if not loc:
+        loc = x[0]
+
+    if not scale:
+        scale = 1
+
+    return x, expon.pdf(x, loc, scale)
 
 
 def stat_gen_dist_beta(start, end, num, a, b, loc=0, scale=1):
