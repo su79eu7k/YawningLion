@@ -39,19 +39,19 @@ def stat_min_max_norm(x):
 
 
 def stat_gen_dist_uniform(start, end, num, loc, scale):
-    x = np.linspace(start, end, num)
+    x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = x[0]
+        loc = x[0] - x_step
 
     if not scale:
         scale = x[-1] - x[0]
 
-    return x, uniform.pdf(x, loc, scale)
+    return x, uniform.cdf(x, loc, scale) - uniform.cdf(x - x_step, loc, scale)
 
 
 def stat_gen_dist_normal(start, end, num, loc, scale):
-    x = np.linspace(start, end, num)
+    x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
         loc = x.mean()
@@ -59,35 +59,32 @@ def stat_gen_dist_normal(start, end, num, loc, scale):
     if not scale:
         scale = x.std()
 
-    return x, norm.pdf(x, loc=loc, scale=scale)
+    return x, norm.cdf(x, loc=loc, scale=scale) - norm.cdf(x - x_step, loc=loc, scale=scale)
 
 
 def stat_gen_dist_exponential(start, end, num, loc, scale):
-    x = np.linspace(start, end, num)
+    x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = x[0]
+        loc = x[0] - x_step
 
     if not scale:
         _gap = str(x[-1] - x[0])
         scale = float("1" + "".zfill(len(_gap)))
 
-    return x, expon.pdf(x, loc, scale)
+    return x, expon.cdf(x, loc, scale) - expon.cdf(x - x_step, loc, scale)
 
 
-def stat_gen_dist_beta(start, end, num, a, b, loc=0, scale=1):
-    x = np.linspace(start, end, num)
-    x_n = stat_min_max_norm(x)
+def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
+    x, x_step = np.linspace(start, end, num, retstep=True)
 
-    if a == 1 and b == 1:
-        return x, uniform.pdf(x_n, loc, scale)
-    else:
-        _ret = beta.pdf(x_n, a, b, loc, scale)
-        _idx_inf = np.isinf(_ret)
-        if _idx_inf.any():
-            return x[_idx_inf], np.full(x[_idx_inf].shape, 1)
-        else:
-            return x, _ret
+    if not loc:
+        loc = x[0] - x_step
+
+    if not scale:
+        scale = x[-1] - x[0]
+
+    return x, beta.cdf(x, a, b, loc, scale) - beta.cdf(x - x_step, a, b, loc, scale)
 
 
 if __name__ == '__main__':
