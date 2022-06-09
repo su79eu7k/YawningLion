@@ -69,7 +69,8 @@ def stat_gen_dist_exponential(start, end, num, loc, scale):
         loc = x[0]
 
     if not scale:
-        scale = 1
+        _gap = str(x[-1] - x[0])
+        scale = float("1" + "".zfill(len(_gap)))
 
     return x, expon.pdf(x, loc, scale)
 
