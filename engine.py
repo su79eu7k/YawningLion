@@ -42,10 +42,10 @@ def stat_gen_dist_uniform(start, end, num, loc, scale):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = x[0] - x_step
+        loc = start - x_step
 
     if not scale:
-        scale = x[-1] - x[0]
+        scale = end - start - x_step
 
     return x, uniform.cdf(x, loc, scale) - uniform.cdf(x - x_step, loc, scale)
 
@@ -66,11 +66,11 @@ def stat_gen_dist_exponential(start, end, num, loc, scale):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = x[0] - x_step
+        loc = start - x_step
 
     if not scale:
-        _gap = str(x[-1] - x[0])
-        scale = float("1" + "".zfill(len(_gap)))
+        # expon.ppf(1 - (1e-16)): 36.7368005696771
+        scale = (end - start - x_step) / 38.229 * 2
 
     return x, expon.cdf(x, loc, scale) - expon.cdf(x - x_step, loc, scale)
 
@@ -79,10 +79,10 @@ def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = x[0] - x_step
+        loc = start - x_step
 
     if not scale:
-        scale = x[-1] - x[0]
+        scale = end - start - x_step
 
     return x, beta.cdf(x, a, b, loc, scale) - beta.cdf(x - x_step, a, b, loc, scale)
 
