@@ -34,20 +34,16 @@ def xw_select_with_focus(workbook, address_sheet, address_cell):
     return True
 
 
-def stat_min_max_norm(x):
-    return (x - np.min(x)) / (np.max(x) - np.min(x))
-
-
 def stat_gen_dist_uniform(start, end, num, loc, scale):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = start - x_step
+        loc = start
 
     if not scale:
-        scale = end - (start - x_step)
+        scale = end - start
 
-    return x, uniform.cdf(x, loc, scale) - uniform.cdf(x - x_step, loc, scale)
+    return x[1:], uniform.cdf(x[1:], loc, scale) - uniform.cdf(x[:-1], loc, scale)
 
 
 def stat_gen_dist_normal(start, end, num, loc, scale):
@@ -59,32 +55,32 @@ def stat_gen_dist_normal(start, end, num, loc, scale):
     if not scale:
         scale = x.std()
 
-    return x, norm.cdf(x, loc=loc, scale=scale) - norm.cdf(x - x_step, loc=loc, scale=scale)
+    return x[1:], norm.cdf(x[1:], loc=loc, scale=scale) - norm.cdf(x[:-1], loc=loc, scale=scale)
 
 
 def stat_gen_dist_exponential(start, end, num, loc, scale):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = start - x_step
+        loc = start
 
     if not scale:
         # expon.ppf(1 - (1e-16)): 36.7368005696771
-        scale = (end - (start - x_step)) / 38.229 * 2
+        scale = (end - start) / 38.229 * 2
 
-    return x, expon.cdf(x, loc, scale) - expon.cdf(x - x_step, loc, scale)
+    return x[1:], expon.cdf(x[1:], loc, scale) - expon.cdf(x[:-1], loc, scale)
 
 
 def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
     if not loc:
-        loc = start - x_step
+        loc = start
 
     if not scale:
-        scale = end - (start - x_step)
+        scale = end - start
 
-    return x, beta.cdf(x, a, b, loc, scale) - beta.cdf(x - x_step, a, b, loc, scale)
+    return x[1:], beta.cdf(x[1:], a, b, loc, scale) - beta.cdf(x[:-1], a, b, loc, scale)
 
 
 if __name__ == '__main__':
