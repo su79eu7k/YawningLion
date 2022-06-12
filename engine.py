@@ -1,6 +1,5 @@
 from math import ceil
 import numpy as np
-from numpy import inf
 from scipy.stats import uniform, norm, expon, beta
 import xlwings as xw
 
@@ -84,11 +83,5 @@ def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
 
 
 if __name__ == '__main__':
-    # # test_file = 'D:/Localhome/sekim/OneDrive - ZF Friedrichshafen AG/Desktop/NPV concept.xlsx'
-    # test_file = 'C:/Users/su79e/Desktop/test.xlsx'
-    #
-    # wb = xw_load_workbooks(test_file)
-    # print(xw_get_selection(wb))
-    #
-    print(stat_gen_dist_uniform(500, 1500, 30).shape)
+    print(stat_gen_dist_uniform(0, 50, 10, 0, 1))
 

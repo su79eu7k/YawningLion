@@ -13,7 +13,7 @@ class Worker:
         self.ext = None
         self.filename = None
         self.filename_ext = None
-        self.wdir = './workbooks/'
+        self.w_dir = './workbooks/'
         self.fullpath = None
 
         self.workbook_obj = None
@@ -36,17 +36,18 @@ class Worker:
 
             return True
         except FileNotFoundError as ex:
+            print(ex)
 
             return False
 
-    def init_workbook(self, uploadfile):
-        self.ext = '.' + uploadfile.filename.split('.')[-1]
+    def init_workbook(self, upload_file_):
+        self.ext = '.' + upload_file_.filename.split('.')[-1]
         self.filename = f"SStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.filename_ext = self.filename + self.ext
-        self.fullpath = self.wdir + self.filename_ext
+        self.fullpath = self.w_dir + self.filename_ext
 
         with open(self.fullpath, 'wb+') as f:
-            f.write(uploadfile.file.read())
+            f.write(upload_file_.file.read())
 
         return True
 
@@ -238,9 +239,9 @@ async def reset():
 
 
 @app.post("/upload_file/", response_model=Response)
-async def upload_file(uploadfile: UploadFile):
+async def upload_file(upload_file_: UploadFile):
     async with sess_lock:
-        sess.init_workbook(uploadfile)
+        sess.init_workbook(upload_file_)
         sess.connect_workbook(sess.fullpath)
         sess.get_selection()
 
@@ -272,21 +273,21 @@ async def select_with_focus(sheet: str, cell: str):
 @app.post("/prob", response_model=ProbRes)
 async def prob(prob_req: ProbReq):
     if prob_req.dist in ['norm', 'normal', 'gauss', 'gaussian']:
-        x, prob = eng.stat_gen_dist_normal(
+        x, p = eng.stat_gen_dist_normal(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['exp', 'expon', 'exponential']:
-        x, prob = eng.stat_gen_dist_exponential(
+        x, p = eng.stat_gen_dist_exponential(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['beta']:
-        x, prob = eng.stat_gen_dist_beta(
+        x, p = eng.stat_gen_dist_beta(
             prob_req.start, prob_req.end, prob_req.step, prob_req.a, prob_req.b, prob_req.loc, prob_req.scale)
     else:
-        x, prob = eng.stat_gen_dist_uniform(
+        x, p = eng.stat_gen_dist_uniform(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
 
     return {"dist": prob_req.dist,
             "x": x.tolist(),
-            "prob": prob.tolist(),
+            "prob": p.tolist(),
             "code": 1,
             "message": "Success: Variable processed with requested distribution."}
 
@@ -357,7 +358,8 @@ async def proc_sim(proc_sim_req: ProcSimReq):
 
     print(_num_chunk)
 
-    sess.task = asyncio.create_task(sess.run_simulation(async_sleep=_async_sleep, num_chunk=_num_chunk, num_trials=proc_sim_req.num_trials))
+    sess.task = asyncio.create_task(
+        sess.run_simulation(async_sleep=_async_sleep, num_chunk=_num_chunk, num_trials=proc_sim_req.num_trials))
     try:
         await sess.task
     except asyncio.CancelledError:
@@ -366,7 +368,7 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     sess.workbook_obj.app.screen_updating = True
     sess.workbook_obj.app.calculation = 'automatic'
 
-    return {"code": 1, "message": f"Succcess"}
+    return {"code": 1, "message": f"Success"}
 
 
 @app.get("/cancel_sim", response_model=Response)
@@ -377,7 +379,7 @@ async def cancel_sim():
     sess.workbook_obj.app.screen_updating = True
     sess.workbook_obj.app.calculation = 'automatic'
 
-    return {"code": 1, "message": f"Succcess"}
+    return {"code": 1, "message": f"Success"}
 
 
 @app.get("/pause_sim", response_model=Response)
@@ -388,7 +390,7 @@ async def pause_sim():
     sess.workbook_obj.app.screen_updating = True
     sess.workbook_obj.app.calculation = 'automatic'
 
-    return {"code": 1, "message": f"Succcess"}
+    return {"code": 1, "message": f"Success"}
 
 
 @app.get("/resume_sim", response_model=Response)
@@ -405,7 +407,7 @@ async def resume_sim():
     sess.workbook_obj.app.screen_updating = True
     sess.workbook_obj.app.calculation = 'automatic'
 
-    return {"code": 1, "message": f"Succcess"}
+    return {"code": 1, "message": f"Success"}
 
 
 @app.get("/get_progress", response_model=Progress)
@@ -439,4 +441,4 @@ async def preview_data(preview_data_req: PreviewDataReq):
 
     xy = [{"x": n[0], "y": n[1]} for n in zip(x, y)]
 
-    return {"code": 1, "message": f"Succcess", "xy": xy}
+    return {"code": 1, "message": f"Success", "xy": xy}
