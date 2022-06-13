@@ -1,6 +1,6 @@
 from math import ceil
 import numpy as np
-from scipy.stats import uniform, norm, expon, beta
+from scipy.stats import uniform, norm, expon, beta, bernoulli
 import xlwings as xw
 
 
@@ -80,6 +80,12 @@ def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
         scale = end - start
 
     return x[1:], beta.cdf(x[1:], a, b, loc, scale) - beta.cdf(x[:-1], a, b, loc, scale)
+
+
+def stat_gen_dist_bernoulli(start, end, p, loc):
+    x = np.array([start, end])
+
+    return x, bernoulli.pmf(x, p, loc)
 
 
 if __name__ == '__main__':
