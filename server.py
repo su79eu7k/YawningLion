@@ -40,14 +40,14 @@ class Worker:
 
             return False
 
-    def init_workbook(self, upload_file_):
-        self.ext = '.' + upload_file_.filename.split('.')[-1]
+    def init_workbook(self, uploadfile):
+        self.ext = '.' + uploadfile.filename.split('.')[-1]
         self.filename = f"SStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.filename_ext = self.filename + self.ext
         self.fullpath = self.w_dir + self.filename_ext
 
         with open(self.fullpath, 'wb+') as f:
-            f.write(upload_file_.file.read())
+            f.write(uploadfile.file.read())
 
         return True
 
@@ -239,9 +239,9 @@ async def reset():
 
 
 @app.post("/upload_file/", response_model=Response)
-async def upload_file(upload_file_: UploadFile):
+async def upload_file(uploadfile: UploadFile):
     async with sess_lock:
-        sess.init_workbook(upload_file_)
+        sess.init_workbook(uploadfile)
         sess.connect_workbook(sess.fullpath)
         sess.get_selection()
 

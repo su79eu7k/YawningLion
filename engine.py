@@ -52,7 +52,8 @@ def stat_gen_dist_normal(start, end, num, loc, scale):
         loc = x.mean()
 
     if not scale:
-        scale = x.std()
+        # norm.cdf(8.293): 1.0
+        scale = x.std() / 8.293
 
     return x[1:], norm.cdf(x[1:], loc=loc, scale=scale) - norm.cdf(x[:-1], loc=loc, scale=scale)
 
