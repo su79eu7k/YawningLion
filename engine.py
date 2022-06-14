@@ -83,10 +83,10 @@ def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
     return x[1:], beta.cdf(x[1:], a, b, loc, scale) - beta.cdf(x[:-1], a, b, loc, scale)
 
 
-def stat_gen_dist_bernoulli(start, end, p, loc):
+def stat_gen_dist_bernoulli(start, end, p):
     x = np.array([start, end])
 
-    return x, bernoulli.pmf(x, p, loc)
+    return x, bernoulli(p=p).pmf(k=[1, 0])
 
 
 if __name__ == '__main__':

@@ -160,11 +160,12 @@ class ProbReq(BaseModel):
     dist: str
     start: int | float
     end: int | float
-    step: int
+    step: int | None
     loc: float | None
     scale: float | None
     a: float | None
     b: float | None
+    p: float | None
 
 
 class ProbRes(Response):
@@ -278,12 +279,17 @@ async def prob(prob_req: ProbReq):
     elif prob_req.dist in ['exp', 'expon', 'exponential']:
         x, p = eng.stat_gen_dist_exponential(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
-    elif prob_req.dist in ['beta']:
+    elif prob_req.dist in ['bet', 'beta']:
         x, p = eng.stat_gen_dist_beta(
             prob_req.start, prob_req.end, prob_req.step, prob_req.a, prob_req.b, prob_req.loc, prob_req.scale)
-    else:
+    elif prob_req.dist in ['uni', 'unif', 'uniform']:
         x, p = eng.stat_gen_dist_uniform(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
+    elif prob_req.dist in ['bern', 'bernoulli']:
+        x, p = eng.stat_gen_dist_bernoulli(
+            prob_req.start, prob_req.end, prob_req.p)
+    else:
+        raise NotImplementedError
 
     return {"dist": prob_req.dist,
             "x": x.tolist(),
