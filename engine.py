@@ -86,13 +86,13 @@ def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
 def stat_gen_dist_bernoulli(start, end, p):
     x, x_step = np.linspace(start, end, 2, retstep=True)
 
-    return x, bernoulli(p=p).pmf(k=[1, 0])
+    return x, bernoulli(p=p).pmf(k=range(2))
 
 
 def stat_gen_dist_binom(start, end, num, p):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
-    return x, binom(n=num-1, p=p).pmf(x)
+    return x, binom(n=num-1, p=p).pmf(range(num))
 
 
 if __name__ == '__main__':
