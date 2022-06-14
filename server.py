@@ -288,6 +288,9 @@ async def prob(prob_req: ProbReq):
     elif prob_req.dist in ['bern', 'bernoulli']:
         x, p = eng.stat_gen_dist_bernoulli(
             prob_req.start, prob_req.end, prob_req.p)
+    elif prob_req.dist in ['binom', 'binomial']:
+        x, p = eng.stat_gen_dist_binom(
+            prob_req.start, prob_req.end, prob_req.step, prob_req.p)
     else:
         raise NotImplementedError
 
