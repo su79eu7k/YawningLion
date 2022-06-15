@@ -293,7 +293,7 @@ async def prob(prob_req: ProbReq):
         x, p = eng.stat_gen_dist_binom(
             prob_req.start, prob_req.end, prob_req.step, prob_req.p, prob_req.loc)
     elif prob_req.dist in ['poiss', 'poisson']:
-        x, p = eng.stat_gen_dist_binom(
+        x, p = eng.stat_gen_dist_poisson(
             prob_req.start, prob_req.end, prob_req.step, prob_req.mu, prob_req.loc)
     else:
         raise NotImplementedError
