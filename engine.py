@@ -1,6 +1,6 @@
 from math import ceil
 import numpy as np
-from scipy.stats import uniform, norm, expon, beta, bernoulli, binom
+from scipy.stats import uniform, norm, expon, beta, bernoulli, binom, poisson
 import xlwings as xw
 
 
@@ -83,16 +83,31 @@ def stat_gen_dist_beta(start, end, num, a, b, loc, scale):
     return x[1:], beta.cdf(x[1:], a, b, loc, scale) - beta.cdf(x[:-1], a, b, loc, scale)
 
 
-def stat_gen_dist_bernoulli(start, end, p):
+def stat_gen_dist_bernoulli(start, end, p, loc):
     x, x_step = np.linspace(start, end, 2, retstep=True)
 
-    return x, bernoulli(p=p).pmf(k=range(2))
+    if not loc:
+        loc = 0
+
+    return x, bernoulli(p=p, loc=loc).pmf(k=range(2))
 
 
-def stat_gen_dist_binom(start, end, num, p):
+def stat_gen_dist_binom(start, end, num, p, loc):
     x, x_step = np.linspace(start, end, num, retstep=True)
 
-    return x, binom(n=num-1, p=p).pmf(range(num))
+    if not loc:
+        loc = 0
+
+    return x, binom(n=num-1, p=p, loc=loc).pmf(range(num))
+
+
+def stat_gen_dist_poisson(start, end, num, mu, loc):
+    x, x_step = np.linspace(start, end, num, retstep=True)
+
+    if not loc:
+        loc = 0
+
+    return x, poisson(mu=mu, loc=loc).pmf(np.linspace(0, num, num+1))
 
 
 if __name__ == '__main__':
