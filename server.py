@@ -366,6 +366,7 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     sess.workbook_obj.app.screen_updating = False
     sess.workbook_obj.app.calculation = 'manual'
 
+    sess.saved = None
     sess.run_benchmark()
 
     # API calls: 2 times / 3 sec, takes 5ms each.
@@ -475,12 +476,20 @@ async def save_sim():
         last_n = min([len(v) for v in sess.monitoring_cells.values()])
         for n in range(first_n, last_n):
             for k in sess.monitoring_cells.keys():
-                con.execute(f"insert into snapshot "
-                            f"values ('{sess.filename}', {ts}, 'm', '{k}', {n}, {sess.monitoring_cells[k][n]})")
+                if sess.monitoring_cells[k][n]:
+                    _cell_value = sess.monitoring_cells[k][n]
+                else:
+                    _cell_value = "null"
+
+                con.execute(f"insert into snapshot values ('{sess.filename}', {ts}, 'm', '{k}', {n}, {_cell_value})")
 
             for k in sess.trial_cells.keys():
-                con.execute(f"insert into snapshot "
-                            f"values ('{sess.filename}', {ts}, 't', '{k}', {n}, {sess.trial_cells[k][n]})")
+                if sess.trial_cells[k][n]:
+                    _cell_value = sess.trial_cells[k][n]
+                else:
+                    _cell_value = "null"
+
+                con.execute(f"insert into snapshot values ('{sess.filename}', {ts}, 't', '{k}', {n}, {_cell_value})")
 
             sess.saved = n
 
