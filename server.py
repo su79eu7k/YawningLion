@@ -42,7 +42,7 @@ class Worker:
 
     def init_workbook(self, uploadfile):
         self.ext = '.' + uploadfile.filename.split('.')[-1]
-        self.filename = f"SStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.filename = f"CStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.filename_ext = self.filename + self.ext
         self.fullpath = self.w_dir + self.filename_ext
 
