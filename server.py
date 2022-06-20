@@ -6,6 +6,11 @@ import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import sqlite3
+
+con = sqlite3.connect("simulation.db")
+con.execute('''create table if not exists snapshot 
+               (filename text, saved real, type text, cell_address text, loop integer, cell_value real)''')
 
 
 class Worker:
@@ -29,6 +34,8 @@ class Worker:
         self.task = None
 
         self.throughput = None
+
+        self.saved = None
 
     def connect_workbook(self, fullpath):
         try:
@@ -455,3 +462,26 @@ async def preview_data(preview_data_req: PreviewDataReq):
     xy = [{"x": n[0], "y": n[1]} for n in zip(x, y)]
 
     return {"code": 1, "message": f"Success", "xy": xy}
+
+
+@app.get("/save_sim", response_model=Response)
+async def save_sim():
+    ts = time.time()
+    with con:
+        if sess.saved:
+            first_n = sess.saved + 1
+        else:
+            first_n = 0
+        last_n = min([len(v) for v in sess.monitoring_cells.values()])
+        for n in range(first_n, last_n):
+            for k in sess.monitoring_cells.keys():
+                con.execute(f"insert into snapshot "
+                            f"values ('{sess.filename}', {ts}, 'm', '{k}', {n}, {sess.monitoring_cells[k][n]})")
+
+            for k in sess.trial_cells.keys():
+                con.execute(f"insert into snapshot "
+                            f"values ('{sess.filename}', {ts}, 't', '{k}', {n}, {sess.trial_cells[k][n]})")
+
+            sess.saved = n
+
+    return {"code": 1, "message": f"Success"}
