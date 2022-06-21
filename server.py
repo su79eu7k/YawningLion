@@ -5,12 +5,35 @@ import engine as eng
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 from pydantic import BaseModel
-import sqlite3
+# import sqlite3
+import databases
+import sqlalchemy
 
-con = sqlite3.connect("simulation.db")
-con.execute('''create table if not exists snapshot 
-               (filename text, saved real, type text, cell_address text, loop integer, cell_value real)''')
+DATABASE_URL = "sqlite:///./simulations.db"
+
+database = databases.Database(DATABASE_URL)
+metadata = sqlalchemy.MetaData()
+snapshots = sqlalchemy.Table(
+    "snapshots",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("filename", sqlalchemy.String),
+    sqlalchemy.Column("saved", sqlalchemy.Float),
+    sqlalchemy.Column("cell_type", sqlalchemy.String),
+    sqlalchemy.Column("cell_address", sqlalchemy.String),
+    sqlalchemy.Column("loop", sqlalchemy.Integer),
+    sqlalchemy.Column("cell_value", sqlalchemy.Float),
+)
+
+engine = sqlalchemy.create_engine(
+    DATABASE_URL, connect_args={"check_same_thread": False}
+)
+metadata.create_all(engine)
+# con = sqlite3.connect("simulation.db")
+# con.execute('''create table if not exists snapshot
+#                (filename text, saved real, type text, cell_address text, loop integer, cell_value real)''')
 
 
 class Worker:
@@ -219,6 +242,12 @@ class PreviewDataXY(BaseModel):
 
 class PreviewDataRes(Response):
     xy: list[PreviewDataXY]
+
+
+class RecordSummary(BaseModel):
+    filename: str
+    saved: float
+    loop: int
 
 
 app = FastAPI()
@@ -468,33 +497,58 @@ async def preview_data(preview_data_req: PreviewDataReq):
 @app.get("/save_sim", response_model=Response)
 async def save_sim():
     ts = time.time()
-    with con:
-        if sess.saved:
-            first_n = sess.saved + 1
-        else:
-            first_n = 0
-        last_n = min([len(v) for v in sess.monitoring_cells.values()])
-        for n in range(first_n, last_n):
-            query = "insert into snapshot values (?, ?, ?, ?, ?, ?)"
-            for k in sess.monitoring_cells.keys():
-                params = (sess.filename, ts, 'm', k, n, sess.monitoring_cells[k][n])
-                con.execute(query, params)
+    if sess.saved:
+        first_n = sess.saved + 1
+    else:
+        first_n = 0
+    last_n = min([len(v) for v in sess.monitoring_cells.values()])
+    for n in range(first_n, last_n):
+        for k in sess.monitoring_cells.keys():
+            query = snapshots.insert().values(
+                filename=sess.filename,
+                saved=ts,
+                cell_type='m',
+                cell_address=k,
+                loop=n,
+                cell_value=sess.monitoring_cells[k][n]
+            )
+            await database.execute(query)
 
-            for k in sess.trial_cells.keys():
-                params = (sess.filename, ts, 't', k, n, sess.trial_cells[k][n])
-                con.execute(query, params)
+        for k in sess.trial_cells.keys():
+            query = snapshots.insert().values(
+                filename=sess.filename,
+                saved=ts,
+                cell_type='t',
+                cell_address=k,
+                loop=n,
+                cell_value=sess.trial_cells[k][n]
+            )
+            await database.execute(query)
 
-            sess.saved = n
+        sess.saved = n
 
     return {"code": 1, "message": f"Success"}
 
   
-@app.get("/get_hist")
+@app.get("/get_hist", response_model=list[RecordSummary])
 async def get_hist(limit: int = 10, offset: int = 0):
-    with con:
-        query = "select filename, saved, max(loop) from snapshot " \
-                "group by filename, saved order by filename desc, saved desc limit ? offset ?"
-        params = (limit, offset)
-        res = con.execute(query, params)
+    # query = "select filename, saved, max(loop) from snapshot " \
+    #         "group by filename, saved order by filename desc, saved desc limit ? offset ?"
+    # params = (limit, offset)
+    # res = con.execute(query, params)
 
-        return [r for r in res]
+    query = sqlalchemy.select(snapshots.c.filename, snapshots.c.saved, sqlalchemy.func.max(snapshots.c.loop)).group_by(snapshots.c.filename, snapshots.c.saved)
+    res = await database.fetch_all(query)
+    print(res)
+
+    return res
+
+
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
