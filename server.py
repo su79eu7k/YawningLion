@@ -475,21 +475,14 @@ async def save_sim():
             first_n = 0
         last_n = min([len(v) for v in sess.monitoring_cells.values()])
         for n in range(first_n, last_n):
+            query = "insert into snapshot values (?, ?, ?, ?, ?, ?)"
             for k in sess.monitoring_cells.keys():
-                if sess.monitoring_cells[k][n]:
-                    _cell_value = sess.monitoring_cells[k][n]
-                else:
-                    _cell_value = "null"
-
-                con.execute(f"insert into snapshot values ('{sess.filename}', {ts}, 'm', '{k}', {n}, {_cell_value})")
+                params = (sess.filename, ts, 'm', k, n, sess.monitoring_cells[k][n])
+                con.execute(query, params)
 
             for k in sess.trial_cells.keys():
-                if sess.trial_cells[k][n]:
-                    _cell_value = sess.trial_cells[k][n]
-                else:
-                    _cell_value = "null"
-
-                con.execute(f"insert into snapshot values ('{sess.filename}', {ts}, 't', '{k}', {n}, {_cell_value})")
+                params = (sess.filename, ts, 't', k, n, sess.trial_cells[k][n])
+                con.execute(query, params)
 
             sess.saved = n
 
