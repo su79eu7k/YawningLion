@@ -247,7 +247,7 @@ class PreviewDataRes(Response):
 class RecordSummary(BaseModel):
     filename: str
     saved: float
-    loop: int
+    max_loop: int
 
 
 app = FastAPI()
@@ -530,18 +530,15 @@ async def save_sim():
     return {"code": 1, "message": f"Success"}
 
   
-@app.get("/get_hist", response_model=list[RecordSummary])
-async def get_hist(limit: int = 10, offset: int = 0):
-    # query = "select filename, saved, max(loop) from snapshot " \
-    #         "group by filename, saved order by filename desc, saved desc limit ? offset ?"
-    # params = (limit, offset)
-    # res = con.execute(query, params)
+@app.get("/get_hist", response_model=List[RecordSummary])
+async def get_hist(offset: int = 0, limit: int = 10):
+    query = sqlalchemy.select(
+        snapshots.c.filename,
+        snapshots.c.saved,
+        sqlalchemy.func.max(snapshots.c.loop).label("max_loop")
+    ).group_by(snapshots.c.filename, snapshots.c.saved).offset(offset).limit(limit)
 
-    query = sqlalchemy.select(snapshots.c.filename, snapshots.c.saved, sqlalchemy.func.max(snapshots.c.loop)).group_by(snapshots.c.filename, snapshots.c.saved)
-    res = await database.fetch_all(query)
-    print(res)
-
-    return res
+    return await database.fetch_all(query)
 
 
 @app.on_event("startup")
