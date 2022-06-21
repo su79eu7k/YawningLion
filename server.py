@@ -487,3 +487,14 @@ async def save_sim():
             sess.saved = n
 
     return {"code": 1, "message": f"Success"}
+
+  
+@app.get("/get_hist")
+async def get_hist(limit: int = 10, offset: int = 0):
+    with con:
+        query = "select filename, saved, max(loop) from snapshot " \
+                "group by filename, saved order by filename desc, saved desc limit ? offset ?"
+        params = (limit, offset)
+        res = con.execute(query, params)
+
+        return [r for r in res]
