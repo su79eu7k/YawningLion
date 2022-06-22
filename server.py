@@ -8,8 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from pydantic import BaseModel
 import sqlalchemy
+from sqlalchemy.ext.asyncio import create_async_engine
 
-DATABASE_URL = "sqlite:///simulations.db"
+engine = create_async_engine(
+    "sqlite+aiosqlite:///simulations.db", echo=True, future=True
+)
 
 metadata_obj = sqlalchemy.MetaData()
 snapshots_table = sqlalchemy.Table(
@@ -23,13 +26,10 @@ snapshots_table = sqlalchemy.Table(
     sqlalchemy.Column("cell_value", sqlalchemy.Float),
 )
 
-engine = sqlalchemy.create_engine(
-    DATABASE_URL, echo=True, future=True
-)
-metadata_obj.create_all(engine)
-# con = sqlite3.connect("simulation.db")
-# con.execute('''create table if not exists snapshot
-#                (filename text, saved real, type text, cell_address text, loop integer, cell_value real)''')
+
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(metadata_obj.create_all)
 
 
 class Worker:
@@ -262,6 +262,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await engine.dispose()
 
 
 @app.get("/reset", response_model=Response)
@@ -510,12 +520,15 @@ async def save_sim():
 
         sess.saved = n
 
-    query = sqlalchemy.insert(snapshots_table).values(values)
-    with engine.connect() as conn:
-        result = conn.execute(query)
-        conn.commit()
+    if values:
+        query = sqlalchemy.insert(snapshots_table).values(values)
+        async with engine.connect() as conn:
+            res = await conn.execute(query)
+            await conn.commit()
 
-    return {"code": 1, "message": f"Success"}
+        return {"code": 1, "message": f"Success({res})"}
+    else:
+        return {"code": 0, "message": f"Success(N/A)"}
 
   
 @app.get("/get_hist", response_model=List[RecordSummary])
@@ -526,5 +539,8 @@ async def get_hist(offset: int = 0, limit: int = 10):
         sqlalchemy.func.max(snapshots_table.c.loop).label("max_loop")
     ).group_by(snapshots_table.c.filename, snapshots_table.c.saved).offset(offset).limit(limit)
 
-    with engine.connect() as conn:
-        return [row for row in conn.execute(query)]
+    async with engine.connect() as conn:
+        res = [row for row in await conn.execute(query)]
+        await conn.commit()
+
+    return res
