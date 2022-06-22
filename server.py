@@ -7,17 +7,14 @@ from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from pydantic import BaseModel
-# import sqlite3
-import databases
 import sqlalchemy
 
-DATABASE_URL = "sqlite:///./simulations.db"
+DATABASE_URL = "sqlite:///simulations.db"
 
-database = databases.Database(DATABASE_URL)
-metadata = sqlalchemy.MetaData()
-snapshots = sqlalchemy.Table(
+metadata_obj = sqlalchemy.MetaData()
+snapshots_table = sqlalchemy.Table(
     "snapshots",
-    metadata,
+    metadata_obj,
     sqlalchemy.Column("filename", sqlalchemy.String),
     sqlalchemy.Column("saved", sqlalchemy.Float),
     sqlalchemy.Column("cell_type", sqlalchemy.String),
@@ -27,9 +24,9 @@ snapshots = sqlalchemy.Table(
 )
 
 engine = sqlalchemy.create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
+    DATABASE_URL, echo=True, future=True
 )
-metadata.create_all(engine)
+metadata_obj.create_all(engine)
 # con = sqlite3.connect("simulation.db")
 # con.execute('''create table if not exists snapshot
 #                (filename text, saved real, type text, cell_address text, loop integer, cell_value real)''')
@@ -513,7 +510,10 @@ async def save_sim():
 
         sess.saved = n
 
-    await database.execute(snapshots.insert().values(values))
+    query = sqlalchemy.insert(snapshots_table).values(values)
+    with engine.connect() as conn:
+        result = conn.execute(query)
+        conn.commit()
 
     return {"code": 1, "message": f"Success"}
 
@@ -521,19 +521,10 @@ async def save_sim():
 @app.get("/get_hist", response_model=List[RecordSummary])
 async def get_hist(offset: int = 0, limit: int = 10):
     query = sqlalchemy.select(
-        snapshots.c.filename,
-        snapshots.c.saved,
-        sqlalchemy.func.max(snapshots.c.loop).label("max_loop")
-    ).group_by(snapshots.c.filename, snapshots.c.saved).offset(offset).limit(limit)
+        snapshots_table.c.filename,
+        snapshots_table.c.saved,
+        sqlalchemy.func.max(snapshots_table.c.loop).label("max_loop")
+    ).group_by(snapshots_table.c.filename, snapshots_table.c.saved).offset(offset).limit(limit)
 
-    return await database.fetch_all(query)
-
-
-@app.on_event("startup")
-async def startup():
-    await database.connect()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    await database.disconnect()
+    with engine.connect() as conn:
+        return [row for row in conn.execute(query)]
