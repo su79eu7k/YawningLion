@@ -18,7 +18,6 @@ metadata = sqlalchemy.MetaData()
 snapshots = sqlalchemy.Table(
     "snapshots",
     metadata,
-    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
     sqlalchemy.Column("filename", sqlalchemy.String),
     sqlalchemy.Column("saved", sqlalchemy.Float),
     sqlalchemy.Column("cell_type", sqlalchemy.String),
@@ -497,35 +496,24 @@ async def preview_data(preview_data_req: PreviewDataReq):
 @app.get("/save_sim", response_model=Response)
 async def save_sim():
     ts = time.time()
+
     if sess.saved:
         first_n = sess.saved + 1
     else:
         first_n = 0
+
     last_n = min([len(v) for v in sess.monitoring_cells.values()])
+    values = []
     for n in range(first_n, last_n):
         for k in sess.monitoring_cells.keys():
-            query = snapshots.insert().values(
-                filename=sess.filename,
-                saved=ts,
-                cell_type='m',
-                cell_address=k,
-                loop=n,
-                cell_value=sess.monitoring_cells[k][n]
-            )
-            await database.execute(query)
+            values.append((sess.filename, ts, 'm', k, n, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            query = snapshots.insert().values(
-                filename=sess.filename,
-                saved=ts,
-                cell_type='t',
-                cell_address=k,
-                loop=n,
-                cell_value=sess.trial_cells[k][n]
-            )
-            await database.execute(query)
+            values.append((sess.filename, ts, 't', k, n, sess.trial_cells[k][n]))
 
         sess.saved = n
+
+    await database.execute(snapshots.insert().values(values))
 
     return {"code": 1, "message": f"Success"}
 
