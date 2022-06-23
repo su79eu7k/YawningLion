@@ -521,9 +521,9 @@ async def save_sim():
         sess.saved = n
 
     if values:
-        query = sqlalchemy.insert(snapshots_table).values(values)
+        stmt = sqlalchemy.insert(snapshots_table).values(values)
         async with engine.connect() as conn:
-            res = await conn.execute(query)
+            res = await conn.execute(stmt)
             await conn.commit()
 
         return {"code": 1, "message": f"Success({res})"}
@@ -533,14 +533,13 @@ async def save_sim():
   
 @app.get("/get_hist", response_model=List[RecordSummary])
 async def get_hist(offset: int = 0, limit: int = 10):
-    query = sqlalchemy.select(
+    stmt = sqlalchemy.select(
         snapshots_table.c.filename,
         snapshots_table.c.saved,
         sqlalchemy.func.max(snapshots_table.c.loop).label("max_loop")
     ).group_by(snapshots_table.c.filename, snapshots_table.c.saved).offset(offset).limit(limit)
 
     async with engine.connect() as conn:
-        res = [row for row in await conn.execute(query)]
-        await conn.commit()
+        res = await conn.execute(stmt)
 
-    return res
+    return res.fetchall()
