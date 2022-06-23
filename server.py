@@ -526,7 +526,7 @@ async def save_sim():
             res = await conn.execute(stmt)
             await conn.commit()
 
-        return {"code": 1, "message": f"Success({res})"}
+        return {"code": 1, "message": f"Success({res.lastrowid})"}
     else:
         return {"code": 0, "message": f"Success(N/A)"}
 
