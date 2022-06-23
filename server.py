@@ -407,8 +407,9 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     # API calls: 2 times / 3 sec, takes 5ms each.
     _async_sleep = .02
     _max_blocking = 1.5
+    _safety_level = .9
     if sess.throughput:
-        _num_chunk = max(round(sess.throughput / (1 / _max_blocking)), 1)
+        _num_chunk = max(round(sess.throughput * _max_blocking * _safety_level), 1)
     else:
         _num_chunk = 5
 
