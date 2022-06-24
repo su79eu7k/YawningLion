@@ -404,10 +404,10 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     sess.saved = None
     sess.run_benchmark()
 
-    # API calls: 2 times / 3 sec, takes 5ms each.
-    _async_sleep = .02
+    # API calls: 2 times / 3 sec, takes 50ms each.
+    _async_sleep = .1
     _max_blocking = 1.5
-    _safety_level = .9
+    _safety_level = .95
     if sess.throughput:
         _num_chunk = max(round(sess.throughput * _max_blocking * _safety_level), 1)
     else:
