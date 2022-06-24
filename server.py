@@ -7,23 +7,23 @@ from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from pydantic import BaseModel
-import sqlalchemy
+from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, func
 from sqlalchemy.ext.asyncio import create_async_engine
 
 engine = create_async_engine(
     "sqlite+aiosqlite:///simulations.db", echo=True, future=True
 )
 
-metadata_obj = sqlalchemy.MetaData()
-snapshots_table = sqlalchemy.Table(
+metadata_obj = MetaData()
+snapshots_table = Table(
     "snapshots",
     metadata_obj,
-    sqlalchemy.Column("filename", sqlalchemy.String),
-    sqlalchemy.Column("saved", sqlalchemy.Float),
-    sqlalchemy.Column("cell_type", sqlalchemy.String),
-    sqlalchemy.Column("cell_address", sqlalchemy.String),
-    sqlalchemy.Column("loop", sqlalchemy.Integer),
-    sqlalchemy.Column("cell_value", sqlalchemy.Float),
+    Column("filename", String),
+    Column("saved", Float),
+    Column("cell_type", String),
+    Column("cell_address", String),
+    Column("loop", Integer),
+    Column("cell_value", Float),
 )
 
 
@@ -404,9 +404,9 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     sess.saved = None
     sess.run_benchmark()
 
-    # API calls: 2 times / 3 sec, takes 50ms each.
-    _async_sleep = .1
-    _max_blocking = 1.5
+    # API calls: 0.8 times/sec(during proc_sim), takes 50ms(during no proc_sim) each.
+    _async_sleep = .05
+    _max_blocking = 1.25
     _safety_level = .95
     if sess.throughput:
         _num_chunk = max(round(sess.throughput * _max_blocking * _safety_level), 1)
@@ -522,7 +522,7 @@ async def save_sim():
         sess.saved = n
 
     if values:
-        stmt = sqlalchemy.insert(snapshots_table).values(values)
+        stmt = insert(snapshots_table).values(values)
         async with engine.connect() as conn:
             res = await conn.execute(stmt)
             await conn.commit()
@@ -534,10 +534,10 @@ async def save_sim():
   
 @app.get("/get_hist", response_model=List[RecordSummary])
 async def get_hist(offset: int = 0, limit: int = 10):
-    stmt = sqlalchemy.select(
+    stmt = select(
         snapshots_table.c.filename,
         snapshots_table.c.saved,
-        sqlalchemy.func.max(snapshots_table.c.loop).label("max_loop")
+        func.max(snapshots_table.c.loop).label("max_loop")
     ).group_by(snapshots_table.c.filename, snapshots_table.c.saved).offset(offset).limit(limit)
 
     async with engine.connect() as conn:
