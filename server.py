@@ -7,7 +7,7 @@ from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from pydantic import BaseModel
-from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, func
+from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func
 from sqlalchemy.ext.asyncio import create_async_engine
 
 engine = create_async_engine(
@@ -244,6 +244,10 @@ class RecordSummary(BaseModel):
     filename: str
     saved: float
     max_loop: int
+
+
+class DelSnapshotReq(BaseModel):
+    filename: str
 
 
 app = FastAPI()
@@ -544,3 +548,13 @@ async def get_hist(offset: int = 0, limit: int = 10):
         res = await conn.execute(stmt)
 
     return res.fetchall()
+
+
+@app.post("/del_snapshot", response_model=Response)
+async def del_snapshot(del_snapshot_req: DelSnapshotReq):
+    stmt = delete(snapshots_table).where(snapshots_table.c.filename == del_snapshot_req.filename)
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+
+    return {"code": 1, "message": f"Success({res.rowcount})"}
