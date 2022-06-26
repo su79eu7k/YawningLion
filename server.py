@@ -19,6 +19,7 @@ snapshots_table = Table(
     "snapshots",
     metadata_obj,
     Column("filename", String),
+    Column("configured", Float),
     Column("saved", Float),
     Column("cell_type", String),
     Column("cell_address", String),
@@ -46,14 +47,15 @@ class Worker:
         self.probs = {}
         self.trial_cells = {}
         self.monitoring_cells = {}
-        self.chunk_processed = None
 
         self.chunks = None
+        self.chunk_processed = None
         self.progress = None
         self.task = None
 
         self.throughput = None
 
+        self.configured = None
         self.saved = None
 
     def connect_workbook(self, fullpath):
@@ -242,12 +244,14 @@ class PreviewDataRes(Response):
 
 class RecordSummary(BaseModel):
     filename: str
+    configured: float
     saved: float
     max_loop: int
 
 
 class DelSnapshotReq(BaseModel):
     filename: str
+    configured: float
 
 
 app = FastAPI()
@@ -354,6 +358,8 @@ async def prob(prob_req: ProbReq):
 @app.post("/add_random_cell", response_model=Response)
 async def add_random_cell(random_cell_add: RandomCellAdd):
     async with sess_lock:
+        sess.configured = time.time()
+
         _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
         sess.random_cells[_key] = random_cell_add.x
         sess.probs[_key] = random_cell_add.prob
@@ -364,6 +370,8 @@ async def add_random_cell(random_cell_add: RandomCellAdd):
 @app.post("/remove_random_cell", response_model=Response)
 async def remove_random_cell(random_cell_remove: RandomCellRemove):
     async with sess_lock:
+        sess.configured = time.time()
+
         _key = '!'.join([random_cell_remove.sheet, random_cell_remove.cell])
         del sess.random_cells[_key]
         del sess.probs[_key]
@@ -374,6 +382,8 @@ async def remove_random_cell(random_cell_remove: RandomCellRemove):
 @app.post("/add_monitoring_cell", response_model=Response)
 async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
     async with sess_lock:
+        sess.configured = time.time()
+
         _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
         sess.monitoring_cells[_key] = []
 
@@ -383,6 +393,8 @@ async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
 @app.post("/remove_monitoring_cell", response_model=Response)
 async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
     async with sess_lock:
+        sess.configured = time.time()
+
         _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
         del sess.monitoring_cells[_key]
 
@@ -507,7 +519,7 @@ async def preview_data(preview_data_req: PreviewDataReq):
 
 @app.get("/save_sim", response_model=Response)
 async def save_sim():
-    ts = time.time()
+    saved = time.time()
 
     if sess.saved:
         first_n = sess.saved + 1
@@ -518,10 +530,10 @@ async def save_sim():
     values = []
     for n in range(first_n, last_n):
         for k in sess.monitoring_cells.keys():
-            values.append((sess.filename, ts, 'm', k, n, sess.monitoring_cells[k][n]))
+            values.append((sess.filename, sess.configured, saved, 'm', k, n, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            values.append((sess.filename, ts, 't', k, n, sess.trial_cells[k][n]))
+            values.append((sess.filename, sess.configured, saved, 't', k, n, sess.trial_cells[k][n]))
 
         sess.saved = n
 
@@ -540,9 +552,14 @@ async def save_sim():
 async def get_hist(offset: int = 0, limit: int = 10):
     stmt = select(
         snapshots_table.c.filename,
+        snapshots_table.c.configured,
         snapshots_table.c.saved,
         func.max(snapshots_table.c.loop).label("max_loop")
-    ).group_by(snapshots_table.c.filename, snapshots_table.c.saved).offset(offset).limit(limit)
+    ).group_by(
+        snapshots_table.c.filename,
+        snapshots_table.c.configured,
+        snapshots_table.c.saved
+    ).offset(offset).limit(limit)
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
@@ -552,7 +569,10 @@ async def get_hist(offset: int = 0, limit: int = 10):
 
 @app.post("/del_snapshot", response_model=Response)
 async def del_snapshot(del_snapshot_req: DelSnapshotReq):
-    stmt = delete(snapshots_table).where(snapshots_table.c.filename == del_snapshot_req.filename)
+    stmt = delete(snapshots_table).where(
+        (snapshots_table.c.filename == del_snapshot_req.filename) &
+        (snapshots_table.c.configured == del_snapshot_req.configured)
+    )
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
