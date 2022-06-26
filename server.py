@@ -556,5 +556,6 @@ async def del_snapshot(del_snapshot_req: DelSnapshotReq):
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
+        await conn.commit()
 
     return {"code": 1, "message": f"Success({res.rowcount})"}
