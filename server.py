@@ -565,11 +565,12 @@ async def get_hist(offset: int = 0, limit: int = 100):
         snapshots_table.c.filename,
         snapshots_table.c.hash_params,
         snapshots_table.c.saved,
-        func.count(snapshots_table.c.loop).label("samples")
-    ).group_by(
-        snapshots_table.c.filename,
+        func.count().label("samples")
+    ).distinct().group_by(
         snapshots_table.c.hash_params,
-        snapshots_table.c.saved
+        snapshots_table.c.saved,
+        snapshots_table.c.cell_type,
+        snapshots_table.c.cell_address,
     ).offset(offset).limit(limit)
 
     async with engine.connect() as conn:
