@@ -1,5 +1,6 @@
 import time
-import datetime
+import hashlib
+import json
 import numpy as np
 import engine as eng
 import asyncio
@@ -19,7 +20,7 @@ snapshots_table = Table(
     "snapshots",
     metadata_obj,
     Column("filename", String),
-    Column("configured", Float),
+    Column("hash_params", String),
     Column("saved", Float),
     Column("cell_type", String),
     Column("cell_address", String),
@@ -55,8 +56,18 @@ class Worker:
 
         self.throughput = None
 
-        self.configured = None
+        self.hash_params = None
         self.saved = None
+
+    def get_hash_params(self):
+        _params = {
+            "filename": self.filename + self.filename_ext,
+            "random_cells": dict(sorted(self.random_cells.items())),
+            "probs": dict(sorted(self.probs.items())),
+            "monitoring_cells": {k: [] for k, _ in sorted(self.monitoring_cells.items())},
+        }
+
+        return hashlib.md5(json.dumps(_params).encode('utf-8')).hexdigest()
 
     def connect_workbook(self, fullpath):
         try:
@@ -70,7 +81,7 @@ class Worker:
 
     def init_workbook(self, uploadfile):
         self.ext = '.' + uploadfile.filename.split('.')[-1]
-        self.filename = f"CStorm_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.filename = "".join(uploadfile.filename.split('.')[:-1])
         self.filename_ext = self.filename + self.ext
         self.fullpath = self.w_dir + self.filename_ext
 
@@ -244,14 +255,14 @@ class PreviewDataRes(Response):
 
 class RecordSummary(BaseModel):
     filename: str
-    configured: float
+    hash_params: str
     saved: float
-    max_loop: int
+    samples: int
 
 
 class DelSnapshotReq(BaseModel):
     filename: str
-    configured: float
+    hash_params: str
 
 
 app = FastAPI()
@@ -358,11 +369,11 @@ async def prob(prob_req: ProbReq):
 @app.post("/add_random_cell", response_model=Response)
 async def add_random_cell(random_cell_add: RandomCellAdd):
     async with sess_lock:
-        sess.configured = time.time()
-
         _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
         sess.random_cells[_key] = random_cell_add.x
         sess.probs[_key] = random_cell_add.prob
+
+        sess.hash_params = sess.get_hash_params()
 
     return {"code": 1, "message": f"Success: Assigned."}
 
@@ -370,11 +381,11 @@ async def add_random_cell(random_cell_add: RandomCellAdd):
 @app.post("/remove_random_cell", response_model=Response)
 async def remove_random_cell(random_cell_remove: RandomCellRemove):
     async with sess_lock:
-        sess.configured = time.time()
-
         _key = '!'.join([random_cell_remove.sheet, random_cell_remove.cell])
         del sess.random_cells[_key]
         del sess.probs[_key]
+
+        sess.hash_params = sess.get_hash_params()
 
     return {"code": 1, "message": f"Success: Unassigned."}
 
@@ -382,10 +393,10 @@ async def remove_random_cell(random_cell_remove: RandomCellRemove):
 @app.post("/add_monitoring_cell", response_model=Response)
 async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
     async with sess_lock:
-        sess.configured = time.time()
-
         _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
         sess.monitoring_cells[_key] = []
+
+        sess.hash_params = sess.get_hash_params()
 
     return {"code": 1, "message": f"Success: Assigned."}
 
@@ -393,10 +404,10 @@ async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
 @app.post("/remove_monitoring_cell", response_model=Response)
 async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
     async with sess_lock:
-        sess.configured = time.time()
-
         _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
         del sess.monitoring_cells[_key]
+
+        sess.hash_params = sess.get_hash_params()
 
     return {"code": 1, "message": f"Success: Assigned."}
 
@@ -530,10 +541,10 @@ async def save_sim():
     values = []
     for n in range(first_n, last_n):
         for k in sess.monitoring_cells.keys():
-            values.append((sess.filename, sess.configured, saved, 'm', k, n, sess.monitoring_cells[k][n]))
+            values.append((sess.filename, sess.hash_params, saved, 'm', k, n, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            values.append((sess.filename, sess.configured, saved, 't', k, n, sess.trial_cells[k][n]))
+            values.append((sess.filename, sess.hash_params, saved, 't', k, n, sess.trial_cells[k][n]))
 
         sess.saved = n
 
@@ -549,15 +560,15 @@ async def save_sim():
 
   
 @app.get("/get_hist", response_model=List[RecordSummary])
-async def get_hist(offset: int = 0, limit: int = 10):
+async def get_hist(offset: int = 0, limit: int = 100):
     stmt = select(
         snapshots_table.c.filename,
-        snapshots_table.c.configured,
+        snapshots_table.c.hash_params,
         snapshots_table.c.saved,
-        func.max(snapshots_table.c.loop).label("max_loop")
+        func.count(snapshots_table.c.loop).label("samples")
     ).group_by(
         snapshots_table.c.filename,
-        snapshots_table.c.configured,
+        snapshots_table.c.hash_params,
         snapshots_table.c.saved
     ).offset(offset).limit(limit)
 
@@ -569,10 +580,9 @@ async def get_hist(offset: int = 0, limit: int = 10):
 
 @app.post("/del_snapshot", response_model=Response)
 async def del_snapshot(del_snapshot_req: DelSnapshotReq):
-    stmt = delete(snapshots_table).where(
-        (snapshots_table.c.filename == del_snapshot_req.filename) &
-        (snapshots_table.c.configured == del_snapshot_req.configured)
-    )
+    stmt = delete(snapshots_table)\
+        .where(snapshots_table.c.filename == del_snapshot_req.filename)\
+        .where(snapshots_table.c.hash_params == del_snapshot_req.hash_params)
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
