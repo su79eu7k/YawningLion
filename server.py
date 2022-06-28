@@ -8,7 +8,7 @@ from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from pydantic import BaseModel
-from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func
+from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, alias
 from sqlalchemy.ext.asyncio import create_async_engine
 
 engine = create_async_engine(
@@ -263,9 +263,8 @@ class RecHistSampleCount(BaseModel):
 class RecHistParams(BaseModel):
     filename: str
     hash_params: str
-    saved: float
-    cell_type: str
-    count: int
+    random: int
+    monitoring: int
 
 
 class DelSnapshotReq(BaseModel):
@@ -600,35 +599,57 @@ async def del_snapshot(del_snapshot_req: DelSnapshotReq):
     return {"code": 1, "message": f"Success({res.rowcount})"}
 
 
-@app.get("/get_hist_params", response_model=List[RecHistSampleCount])
+@app.get("/get_hist_params", response_model=List[RecHistParams])
 async def get_hist_params(offset: int = 0, limit: int = 100):
     # SQLAlchemy not supporting View out of the box: https://stackoverflow.com/a/9769411/3054161
     # Nested sub-queries vs view performance will be the same: https://stackoverflow.com/a/25603457/3054161
 
-    stmt_sub = select(
+    stmt_distinct = select(
         snapshots_table.c.filename,
         snapshots_table.c.hash_params,
-        snapshots_table.c.saved,
         snapshots_table.c.cell_type,
         snapshots_table.c.cell_address,
-    ).distinct()
+    ).distinct().subquery()
 
-    stmt = select(
-        stmt_sub.c.filename,
-        stmt_sub.c.hash_params,
-        stmt_sub.c.saved,
-        stmt_sub.c.cell_type,
+    stmt_count = select(
+        stmt_distinct.c.filename,
+        stmt_distinct.c.hash_params,
+        stmt_distinct.c.cell_type,
         func.count(
-            stmt_sub.c.cell_address,
-        ).label("samples")
+            stmt_distinct.c.cell_address,
+        ).label("cell_address")
     ).group_by(
-        stmt_sub.c.filename,
-        stmt_sub.c.hash_params,
-        stmt_sub.c.saved,
-        stmt_sub.c.cell_type,
+        stmt_distinct.c.filename,
+        stmt_distinct.c.hash_params,
+        stmt_distinct.c.cell_type,
+    ).subquery()
+
+    stmt_rand = select(
+        stmt_count.c.filename,
+        stmt_count.c.hash_params,
+        stmt_count.c.cell_address.label('random'),
+    ).where(stmt_count.c.cell_type == "t").subquery()
+
+    stmt_monit = select(
+        stmt_count.c.filename,
+        stmt_count.c.hash_params,
+        stmt_count.c.cell_address.label('monitoring'),
+    ).where(stmt_count.c.cell_type == "m").subquery()
+
+    stmt_join = select(
+        stmt_rand.c.filename,
+        stmt_rand.c.hash_params,
+        stmt_rand.c.random,
+        stmt_monit.c.monitoring,
+    ).select_from(
+        stmt_rand.join(
+            stmt_monit,
+            onclause=(stmt_rand.c.hash_params == stmt_monit.c.hash_params),
+            isouter=True
+        )
     ).offset(offset).limit(limit)
 
     async with engine.connect() as conn:
-        res = await conn.execute(stmt)
+        res = await conn.execute(stmt_join)
 
     return res.fetchall()
