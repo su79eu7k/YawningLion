@@ -253,11 +253,19 @@ class PreviewDataRes(Response):
     xy: list[PreviewDataXY]
 
 
-class RecordSummary(BaseModel):
+class RecHistSampleCount(BaseModel):
     filename: str
     hash_params: str
     saved: float
     samples: int
+
+
+class RecHistParams(BaseModel):
+    filename: str
+    hash_params: str
+    saved: float
+    cell_type: str
+    count: int
 
 
 class DelSnapshotReq(BaseModel):
@@ -559,7 +567,7 @@ async def save_sim():
         return {"code": 0, "message": f"Success(N/A)"}
 
   
-@app.get("/get_hist", response_model=List[RecordSummary])
+@app.get("/get_hist", response_model=List[RecHistSampleCount])
 async def get_hist(offset: int = 0, limit: int = 100):
     stmt = select(
         snapshots_table.c.filename,
@@ -590,3 +598,37 @@ async def del_snapshot(del_snapshot_req: DelSnapshotReq):
         await conn.commit()
 
     return {"code": 1, "message": f"Success({res.rowcount})"}
+
+
+@app.get("/get_hist_params", response_model=List[RecHistSampleCount])
+async def get_hist_params(offset: int = 0, limit: int = 100):
+    # SQLAlchemy not supporting View out of the box: https://stackoverflow.com/a/9769411/3054161
+    # Nested sub-queries vs view performance will be the same: https://stackoverflow.com/a/25603457/3054161
+
+    stmt_sub = select(
+        snapshots_table.c.filename,
+        snapshots_table.c.hash_params,
+        snapshots_table.c.saved,
+        snapshots_table.c.cell_type,
+        snapshots_table.c.cell_address,
+    ).distinct()
+
+    stmt = select(
+        stmt_sub.c.filename,
+        stmt_sub.c.hash_params,
+        stmt_sub.c.saved,
+        stmt_sub.c.cell_type,
+        func.count(
+            stmt_sub.c.cell_address,
+        ).label("samples")
+    ).group_by(
+        stmt_sub.c.filename,
+        stmt_sub.c.hash_params,
+        stmt_sub.c.saved,
+        stmt_sub.c.cell_type,
+    ).offset(offset).limit(limit)
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+
+    return res.fetchall()
