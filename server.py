@@ -1,11 +1,13 @@
 import time
 import hashlib
 import json
+import csv
 import numpy as np
 import engine as eng
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from typing import List
 from pydantic import BaseModel
 from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, alias
@@ -25,6 +27,7 @@ snapshots_table = Table(
     Column("cell_type", String),
     Column("cell_address", String),
     Column("loop", Integer),
+    Column("hash_records", String),
     Column("cell_value", Float),
 )
 
@@ -58,6 +61,18 @@ class Worker:
 
         self.hash_params = None
         self.saved = None
+
+    def get_hash_records(self, loop):
+        _family_identifier = {
+            "filename": self.filename + self.filename_ext,
+            "hash_params": self.hash_params,
+            "saved": self.saved,
+            "loop": loop
+        }
+
+        return hashlib.md5(json.dumps(_family_identifier).encode('utf-8')).hexdigest()
+
+
 
     def get_hash_params(self):
         _params = {
@@ -547,11 +562,12 @@ async def save_sim():
     last_n = min([len(v) for v in sess.monitoring_cells.values()])
     values = []
     for n in range(first_n, last_n):
+        _hash_records = sess.get_hash_records(loop=n)
         for k in sess.monitoring_cells.keys():
-            values.append((sess.filename, sess.hash_params, saved, 'm', k, n, sess.monitoring_cells[k][n]))
+            values.append((sess.filename, sess.hash_params, saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            values.append((sess.filename, sess.hash_params, saved, 't', k, n, sess.trial_cells[k][n]))
+            values.append((sess.filename, sess.hash_params, saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
 
         sess.saved = n
 
@@ -601,8 +617,8 @@ async def del_snapshot(del_snapshot_req: DelSnapshotReq):
 
 @app.get("/get_hist_params", response_model=List[RecHistParams])
 async def get_hist_params(offset: int = 0, limit: int = 100):
-    # SQLAlchemy not supporting View out of the box: https://stackoverflow.com/a/9769411/3054161
-    # Nested sub-queries vs view performance will be the same: https://stackoverflow.com/a/25603457/3054161
+    # SQLAlchemy not supporting View: https://stackoverflow.com/a/9769411/3054161
+    # Nested sub-queries vs View performance will be the same: https://stackoverflow.com/a/25603457/3054161
 
     stmt_distinct = select(
         snapshots_table.c.filename,
@@ -653,3 +669,29 @@ async def get_hist_params(offset: int = 0, limit: int = 100):
         res = await conn.execute(stmt_join)
 
     return res.fetchall()
+
+
+@app.get("/get_csv", response_class=FileResponse)
+async def get_csv(hash_params: str):
+    stmt = select(
+        snapshots_table.c.filename,
+        snapshots_table.c.hash_params,
+        snapshots_table.c.saved,
+        snapshots_table.c.hash_records,
+        snapshots_table.c.cell_type,
+        snapshots_table.c.cell_address,
+        snapshots_table.c.cell_value,
+    ).where(
+        snapshots_table.c.hash_params == hash_params
+    )
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+
+    _temp_file = './dump.csv'
+    with open(_temp_file, 'w') as f:
+        out = csv.writer(f)
+
+        out.writerows(res)
+
+    return FileResponse(_temp_file)
