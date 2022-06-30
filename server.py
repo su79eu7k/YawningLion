@@ -1,13 +1,15 @@
+import io
 import time
 import hashlib
 import json
-import csv
+
 import numpy as np
 import engine as eng
+import pandas as pd
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from typing import List
 from pydantic import BaseModel
 from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, alias
@@ -671,12 +673,9 @@ async def get_hist_params(offset: int = 0, limit: int = 100):
     return res.fetchall()
 
 
-@app.get("/get_csv", response_class=FileResponse)
+@app.get("/get_csv", response_class=StreamingResponse)
 async def get_csv(hash_params: str):
     stmt = select(
-        snapshots_table.c.filename,
-        snapshots_table.c.hash_params,
-        snapshots_table.c.saved,
         snapshots_table.c.hash_records,
         snapshots_table.c.cell_type,
         snapshots_table.c.cell_address,
@@ -688,10 +687,7 @@ async def get_csv(hash_params: str):
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
 
-    _temp_file = './dump.csv'
-    with open(_temp_file, 'w') as f:
-        out = csv.writer(f)
+    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
-        out.writerows(res)
-
-    return FileResponse(_temp_file)
+    return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
