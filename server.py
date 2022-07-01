@@ -74,8 +74,6 @@ class Worker:
 
         return hashlib.md5(json.dumps(_family_identifier).encode('utf-8')).hexdigest()
 
-
-
     def get_hash_params(self):
         _params = {
             "filename": self.filename + self.filename_ext,
@@ -566,10 +564,10 @@ async def save_sim():
     for n in range(first_n, last_n):
         _hash_records = sess.get_hash_records(loop=n)
         for k in sess.monitoring_cells.keys():
-            values.append((sess.filename, sess.hash_params, saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
+            values.append((sess.filename + sess.filename_ext, sess.hash_params, saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            values.append((sess.filename, sess.hash_params, saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
+            values.append((sess.filename + sess.filename_ext, sess.hash_params, saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
 
         sess.saved = n
 
