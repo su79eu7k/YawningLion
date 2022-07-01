@@ -8,7 +8,7 @@ from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from pydantic import BaseModel
-from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, alias
+from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, exists
 from sqlalchemy.ext.asyncio import create_async_engine
 
 engine = create_async_engine(
@@ -549,6 +549,39 @@ async def preview_data(preview_data_req: PreviewDataReq):
 async def save_sim():
     saved = time.time()
 
+    # Parameters
+    # Existence check
+    stmt = exists().where(params_table.c.hash_params == sess.hash_params).select()
+
+    async with engine.connect() as conn:
+        _res_exists = await conn.execute(stmt)
+
+    # Proceed
+    if not _res_exists.first()[0]:
+        values = []
+        _raw_params = {'r': sess.random_cells, 'p': sess.probs, 'm': sess.monitoring_cells}
+        for t in _raw_params.keys():
+            for k in _raw_params[t].keys():
+                if t == 'm':
+                    values.append((sess.hash_params, t, k, None, None))
+                else:
+                    for i, v in enumerate(_raw_params[t][k]):
+                        values.append((sess.hash_params, t, k, i, v))
+
+        stmt = insert(params_table).values(values)
+
+        if values:
+            async with engine.connect() as conn:
+                _res_par = await conn.execute(stmt)
+                await conn.commit()
+
+            _sig_par = 1
+        else:
+            _sig_par = 0
+    else:
+        _sig_par = 1
+
+    # Records
     if sess.saved:
         first_n = sess.saved + 1
     else:
@@ -575,29 +608,7 @@ async def save_sim():
     else:
         _sig_rec = 0
 
-    # TODO: Prevent duplicated insert.
-    values = []
-    _raw_params = {'r': sess.random_cells, 'p': sess.probs, 'm': sess.monitoring_cells}
-    for t in _raw_params.keys():
-        for k in _raw_params[t].keys():
-            if t == 'm':
-                values.append((sess.hash_params, t, k, None, None))
-            else:
-                for i, v in enumerate(_raw_params[t][k]):
-                    values.append((sess.hash_params, t, k, i, v))
-
-    stmt = insert(params_table).values(values)
-
-    if values:
-        async with engine.connect() as conn:
-            _res_par = await conn.execute(stmt)
-            await conn.commit()
-
-        _sig_par = 1
-    else:
-        _sig_par = 0
-
-    return {"code": _sig_rec and _sig_par, "message": f"{_sig_rec}: {_res_rec} / {_sig_par}: {_res_par})"}
+    return {"code": _sig_rec and _sig_par, "message": f"Rec: {_sig_rec} / Par: {_sig_par}"}
 
   
 @app.get("/get_hist", response_model=List[RecHistSampleCount])
