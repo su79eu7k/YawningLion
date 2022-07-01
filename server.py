@@ -1,15 +1,11 @@
-import io
 import time
 import hashlib
 import json
-
 import numpy as np
 import engine as eng
-import pandas as pd
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from typing import List
 from pydantic import BaseModel
 from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, alias
@@ -29,8 +25,17 @@ snapshots_table = Table(
     Column("cell_type", String),
     Column("cell_address", String),
     Column("loop", Integer),
-    Column("hash_records", String),
     Column("cell_value", Float),
+)
+
+params_table = Table(
+    "params",
+    metadata_obj,
+    Column("hash_params", String),
+    Column("param_type", String),
+    Column("cell_address", String),
+    Column("param_index", Integer),
+    Column("param_value", Float),
 )
 
 
@@ -63,16 +68,6 @@ class Worker:
 
         self.hash_params = None
         self.saved = None
-
-    def get_hash_records(self, loop):
-        _family_identifier = {
-            "filename": self.filename + self.filename_ext,
-            "hash_params": self.hash_params,
-            "saved": self.saved,
-            "loop": loop
-        }
-
-        return hashlib.md5(json.dumps(_family_identifier).encode('utf-8')).hexdigest()
 
     def get_hash_params(self):
         _params = {
@@ -562,24 +557,47 @@ async def save_sim():
     last_n = min([len(v) for v in sess.monitoring_cells.values()])
     values = []
     for n in range(first_n, last_n):
-        _hash_records = sess.get_hash_records(loop=n)
         for k in sess.monitoring_cells.keys():
-            values.append((sess.filename + sess.filename_ext, sess.hash_params, saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
+            values.append((sess.filename, sess.hash_params, saved, 'm', k, n, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            values.append((sess.filename + sess.filename_ext, sess.hash_params, saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
+            values.append((sess.filename, sess.hash_params, saved, 't', k, n, sess.trial_cells[k][n]))
 
         sess.saved = n
 
     if values:
         stmt = insert(snapshots_table).values(values)
         async with engine.connect() as conn:
-            res = await conn.execute(stmt)
+            _res_rec = await conn.execute(stmt)
             await conn.commit()
 
-        return {"code": 1, "message": f"Success({res.lastrowid})"}
+        _sig_rec = 1
     else:
-        return {"code": 0, "message": f"Success(N/A)"}
+        _sig_rec = 0
+
+    # TODO: Prevent duplicated insert.
+    values = []
+    _raw_params = {'r': sess.random_cells, 'p': sess.probs, 'm': sess.monitoring_cells}
+    for t in _raw_params.keys():
+        for k in _raw_params[t].keys():
+            if t == 'm':
+                values.append((sess.hash_params, t, k, None, None))
+            else:
+                for i, v in enumerate(_raw_params[t][k]):
+                    values.append((sess.hash_params, t, k, i, v))
+
+    stmt = insert(params_table).values(values)
+
+    if values:
+        async with engine.connect() as conn:
+            _res_par = await conn.execute(stmt)
+            await conn.commit()
+
+        _sig_par = 1
+    else:
+        _sig_par = 0
+
+    return {"code": _sig_rec and _sig_par, "message": f"{_sig_rec}: {_res_rec} / {_sig_par}: {_res_par})"}
 
   
 @app.get("/get_hist", response_model=List[RecHistSampleCount])
@@ -617,8 +635,8 @@ async def del_snapshot(del_snapshot_req: DelSnapshotReq):
 
 @app.get("/get_hist_params", response_model=List[RecHistParams])
 async def get_hist_params(offset: int = 0, limit: int = 100):
-    # SQLAlchemy not supporting View: https://stackoverflow.com/a/9769411/3054161
-    # Nested sub-queries vs View performance will be the same: https://stackoverflow.com/a/25603457/3054161
+    # SQLAlchemy not supporting View out of the box: https://stackoverflow.com/a/9769411/3054161
+    # Nested sub-queries vs view performance will be the same: https://stackoverflow.com/a/25603457/3054161
 
     stmt_distinct = select(
         snapshots_table.c.filename,
@@ -669,23 +687,3 @@ async def get_hist_params(offset: int = 0, limit: int = 100):
         res = await conn.execute(stmt_join)
 
     return res.fetchall()
-
-
-@app.get("/get_csv", response_class=StreamingResponse)
-async def get_csv(hash_params: str):
-    stmt = select(
-        snapshots_table.c.hash_records,
-        snapshots_table.c.cell_type,
-        snapshots_table.c.cell_address,
-        snapshots_table.c.cell_value,
-    ).where(
-        snapshots_table.c.hash_params == hash_params
-    )
-
-    async with engine.connect() as conn:
-        res = await conn.execute(stmt)
-
-    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
-    df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
-
-    return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
