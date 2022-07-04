@@ -302,6 +302,20 @@ class Corr(BaseModel):
     v: float
 
 
+class SummaryRes(BaseModel):
+    column: str
+    stats: str
+    value: float
+
+
+class SummaryReq(BaseModel):
+    hash_params: str
+    cell_type: str | None
+    cell_address: str | None
+    cell_value_egt: float | None
+    cell_value_elt: float | None
+
+
 app = FastAPI()
 
 origins = [
@@ -717,6 +731,7 @@ async def get_hist_params(offset: int = 0, limit: int = 100):
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt_join)
+        await conn.commit()
 
     return res.fetchall()
 
@@ -734,6 +749,7 @@ async def get_csv(hash_params: str):
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
+        await conn.commit()
 
     # Rec to df.
     df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
@@ -755,6 +771,7 @@ async def get_corr(hash_params: str):
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
+        await conn.commit()
 
     # Rec to df.
     df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
@@ -764,4 +781,38 @@ async def get_corr(hash_params: str):
     df_corr_recs = df.corr().unstack().reset_index()
     df_corr_recs.columns = ['x', 'y', 'v']
 
-    return df_corr_recs.to_json(orient='records')
+    return df_corr_recs.to_dict(orient='records')
+
+
+@app.post("/get_summary", response_model=List[SummaryRes])
+async def get_summary(summary_req: SummaryReq):
+    stmt = select(
+        snapshots_table.c.hash_records,
+        snapshots_table.c.cell_type,
+        snapshots_table.c.cell_address,
+        snapshots_table.c.cell_value,
+    ).where(
+        snapshots_table.c.hash_params == summary_req.hash_params
+    )
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+        await conn.commit()
+
+    # Rec to df.
+    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
+
+    q_egt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] >= summary_req.cell_value_egt
+    q_elt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] <= summary_req.cell_value_elt
+    if (summary_req.cell_value_egt is not None) and (summary_req.cell_value_elt is not None):
+        df = df[q_egt & q_elt]
+    elif summary_req.cell_value_egt is None:
+        df = df[q_elt]
+    elif summary_req.cell_value_elt is None:
+        df = df[q_egt]
+
+    df_summary = df.describe().unstack().reset_index()
+    df_summary.columns = ['column', 'stats', 'value']
+
+    return df_summary.to_dict(orient='records')
