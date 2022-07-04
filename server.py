@@ -2,7 +2,6 @@ import io
 import time
 import hashlib
 import json
-
 import numpy as np
 import engine as eng
 import pandas as pd
@@ -12,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List
 from pydantic import BaseModel
-from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, alias
+from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, exists
 from sqlalchemy.ext.asyncio import create_async_engine
 
 engine = create_async_engine(
@@ -31,6 +30,16 @@ snapshots_table = Table(
     Column("loop", Integer),
     Column("hash_records", String),
     Column("cell_value", Float),
+)
+
+params_table = Table(
+    "params",
+    metadata_obj,
+    Column("hash_params", String),
+    Column("param_type", String),
+    Column("cell_address", String),
+    Column("param_index", Integer),
+    Column("param_value", Float),
 )
 
 
@@ -66,7 +75,7 @@ class Worker:
 
     def get_hash_records(self, loop):
         _family_identifier = {
-            "filename": self.filename + self.filename_ext,
+            "filename": self.filename_ext,
             "hash_params": self.hash_params,
             "saved": self.saved,
             "loop": loop
@@ -76,7 +85,7 @@ class Worker:
 
     def get_hash_params(self):
         _params = {
-            "filename": self.filename + self.filename_ext,
+            "filename": self.filename_ext,
             "random_cells": dict(sorted(self.random_cells.items())),
             "probs": dict(sorted(self.probs.items())),
             "monitoring_cells": {k: [] for k, _ in sorted(self.monitoring_cells.items())},
@@ -554,6 +563,39 @@ async def preview_data(preview_data_req: PreviewDataReq):
 async def save_sim():
     saved = time.time()
 
+    # Parameters
+    # Existence check
+    stmt = exists().where(params_table.c.hash_params == sess.hash_params).select()
+
+    async with engine.connect() as conn:
+        _res_exists = await conn.execute(stmt)
+
+    # Proceed
+    if not _res_exists.first()[0]:
+        values = []
+        _raw_params = {'r': sess.random_cells, 'p': sess.probs, 'm': sess.monitoring_cells}
+        for t in _raw_params.keys():
+            for k in _raw_params[t].keys():
+                if t == 'm':
+                    values.append((sess.hash_params, t, k, None, None))
+                else:
+                    for i, v in enumerate(_raw_params[t][k]):
+                        values.append((sess.hash_params, t, k, i, v))
+
+        stmt = insert(params_table).values(values)
+
+        if values:
+            async with engine.connect() as conn:
+                _res_par = await conn.execute(stmt)
+                await conn.commit()
+
+            _sig_par = 1
+        else:
+            _sig_par = 0
+    else:
+        _sig_par = 1
+
+    # Records
     if sess.saved:
         first_n = sess.saved + 1
     else:
@@ -564,22 +606,24 @@ async def save_sim():
     for n in range(first_n, last_n):
         _hash_records = sess.get_hash_records(loop=n)
         for k in sess.monitoring_cells.keys():
-            values.append((sess.filename + sess.filename_ext, sess.hash_params, saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
+            values.append((sess.filename_ext, sess.hash_params, saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            values.append((sess.filename + sess.filename_ext, sess.hash_params, saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
+            values.append((sess.filename_ext, sess.hash_params, saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
 
         sess.saved = n
 
     if values:
         stmt = insert(snapshots_table).values(values)
         async with engine.connect() as conn:
-            res = await conn.execute(stmt)
+            _res_rec = await conn.execute(stmt)
             await conn.commit()
 
-        return {"code": 1, "message": f"Success({res.lastrowid})"}
+        _sig_rec = 1
     else:
-        return {"code": 0, "message": f"Success(N/A)"}
+        _sig_rec = 0
+
+    return {"code": _sig_rec and _sig_par, "message": f"Rec: {_sig_rec} / Par: {_sig_par}"}
 
   
 @app.get("/get_hist", response_model=List[RecHistSampleCount])
