@@ -296,6 +296,12 @@ class DelSnapshotReq(BaseModel):
     hash_params: str
 
 
+class Corr(BaseModel):
+    x: str
+    y: str
+    v: float
+
+
 app = FastAPI()
 
 origins = [
@@ -729,7 +735,33 @@ async def get_csv(hash_params: str):
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
 
+    # Rec to df.
     df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
+
+
+@app.get("/get_corr", response_model=List[Corr])
+async def get_corr(hash_params: str):
+    stmt = select(
+        snapshots_table.c.cell_type,
+        snapshots_table.c.cell_address,
+        snapshots_table.c.hash_records,
+        snapshots_table.c.cell_value,
+    ).where(
+        snapshots_table.c.hash_records == hash_params
+    )
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+
+    # Rec to df.
+    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
+
+    # Calc Corr.
+    df_corr_recs = df.corr().unstack().reset_index()
+    df_corr_recs.columns = ['x', 'y', 'v']
+
+    return df_corr_recs.to_json(orient='records')
