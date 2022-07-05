@@ -4,7 +4,7 @@ import time
 import hashlib
 import json
 import numpy as np
-import stat
+import dists
 from pandas import DataFrame
 from xlwings import Book
 import asyncio
@@ -398,25 +398,25 @@ async def select_with_focus(sheet: str, cell: str):
 @app.post("/prob", response_model=ProbRes)
 async def prob(prob_req: ProbReq):
     if prob_req.dist in ['norm', 'normal', 'gauss', 'gaussian']:
-        x, p = stat.stat_gen_dist_normal(
+        x, p = dists.stat_gen_dist_normal(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['exp', 'expon', 'exponential']:
-        x, p = stat.stat_gen_dist_exponential(
+        x, p = dists.stat_gen_dist_exponential(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['bet', 'beta']:
-        x, p = stat.stat_gen_dist_beta(
+        x, p = dists.stat_gen_dist_beta(
             prob_req.start, prob_req.end, prob_req.step, prob_req.a, prob_req.b, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['uni', 'unif', 'uniform']:
-        x, p = stat.stat_gen_dist_uniform(
+        x, p = dists.stat_gen_dist_uniform(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['bern', 'bernoulli']:
-        x, p = stat.stat_gen_dist_bernoulli(
+        x, p = dists.stat_gen_dist_bernoulli(
             prob_req.start, prob_req.end, prob_req.p, prob_req.loc)
     elif prob_req.dist in ['binom', 'binomial']:
-        x, p = stat.stat_gen_dist_binom(
+        x, p = dists.stat_gen_dist_binom(
             prob_req.start, prob_req.end, prob_req.step, prob_req.p, prob_req.loc)
     elif prob_req.dist in ['poiss', 'poisson']:
-        x, p = stat.stat_gen_dist_poisson(
+        x, p = dists.stat_gen_dist_poisson(
             prob_req.start, prob_req.end, prob_req.step, prob_req.mu, prob_req.loc)
     else:
         raise NotImplementedError
