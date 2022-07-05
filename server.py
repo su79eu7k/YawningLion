@@ -1,10 +1,12 @@
+from math import ceil
 import io
 import time
 import hashlib
 import json
 import numpy as np
-import engine as eng
-import pandas as pd
+import stat
+from pandas import DataFrame
+from xlwings import Book
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -73,6 +75,20 @@ class Worker:
         self.hash_params = None
         self.saved = None
 
+
+    def get_selection(self):
+        self.workbook_obj.activate()
+        return self.workbook_obj.selection.get_address(False, False, True, False).replace("'", "").split('!')
+
+
+    def select_with_focus(self, address_sheet, address_cell):
+        _sheet = self.workbook_obj.sheets[address_sheet]
+        _sheet.activate()
+        _sheet.range(address_cell).select()
+        self.workbook_obj.activate(steal_focus=True)
+
+        return True
+
     def get_hash_records(self, loop):
         _family_identifier = {
             "filename": self.filename_ext,
@@ -95,7 +111,7 @@ class Worker:
 
     def connect_workbook(self, fullpath):
         try:
-            self.workbook_obj = eng.xw_load_workbooks(fullpath)
+            self.workbook_obj = Book(fullpath)
 
             return True
         except FileNotFoundError as ex:
@@ -111,14 +127,6 @@ class Worker:
 
         with open(self.fullpath, 'wb+') as f:
             f.write(uploadfile.file.read())
-
-        return True
-
-    def get_selection(self):
-        return eng.xw_get_selection(self.workbook_obj).replace("'", "").split('!')
-
-    def select_with_focus(self, address_sheet, address_cell):
-        eng.xw_select_with_focus(self.workbook_obj, address_sheet, address_cell)
 
         return True
 
@@ -154,6 +162,9 @@ class Worker:
 
         return True
 
+    def util_build_chunks(self, lst, size):
+        return list(map(lambda x: lst[x * size:x * size + size], list(range(0, ceil(len(lst) / size)))))
+
     async def run_simulation(self, async_sleep=0.1, num_chunk=20, num_trials=2000, resume=False):
         if not resume:
             # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
@@ -164,7 +175,7 @@ class Worker:
             for k in self.monitoring_cells.keys():
                 self.monitoring_cells[k] = []
 
-            self.chunks = eng.util_build_chunks(list(range(num_trials)), num_chunk)
+            self.chunks = self.util_build_chunks(list(range(num_trials)), num_chunk)
 
             self.chunk_processed = 0
             self.progress = 0
@@ -387,25 +398,25 @@ async def select_with_focus(sheet: str, cell: str):
 @app.post("/prob", response_model=ProbRes)
 async def prob(prob_req: ProbReq):
     if prob_req.dist in ['norm', 'normal', 'gauss', 'gaussian']:
-        x, p = eng.stat_gen_dist_normal(
+        x, p = stat.stat_gen_dist_normal(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['exp', 'expon', 'exponential']:
-        x, p = eng.stat_gen_dist_exponential(
+        x, p = stat.stat_gen_dist_exponential(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['bet', 'beta']:
-        x, p = eng.stat_gen_dist_beta(
+        x, p = stat.stat_gen_dist_beta(
             prob_req.start, prob_req.end, prob_req.step, prob_req.a, prob_req.b, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['uni', 'unif', 'uniform']:
-        x, p = eng.stat_gen_dist_uniform(
+        x, p = stat.stat_gen_dist_uniform(
             prob_req.start, prob_req.end, prob_req.step, prob_req.loc, prob_req.scale)
     elif prob_req.dist in ['bern', 'bernoulli']:
-        x, p = eng.stat_gen_dist_bernoulli(
+        x, p = stat.stat_gen_dist_bernoulli(
             prob_req.start, prob_req.end, prob_req.p, prob_req.loc)
     elif prob_req.dist in ['binom', 'binomial']:
-        x, p = eng.stat_gen_dist_binom(
+        x, p = stat.stat_gen_dist_binom(
             prob_req.start, prob_req.end, prob_req.step, prob_req.p, prob_req.loc)
     elif prob_req.dist in ['poiss', 'poisson']:
-        x, p = eng.stat_gen_dist_poisson(
+        x, p = stat.stat_gen_dist_poisson(
             prob_req.start, prob_req.end, prob_req.step, prob_req.mu, prob_req.loc)
     else:
         raise NotImplementedError
@@ -589,6 +600,7 @@ async def save_sim():
 
     async with engine.connect() as conn:
         _res_exists = await conn.execute(stmt)
+        await conn.commit()
 
     # Proceed
     if not _res_exists.first()[0]:
@@ -752,7 +764,7 @@ async def get_csv(hash_params: str):
         await conn.commit()
 
     # Rec to df.
-    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
@@ -774,7 +786,7 @@ async def get_corr(hash_params: str):
         await conn.commit()
 
     # Rec to df.
-    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     # Calc Corr.
@@ -800,7 +812,7 @@ async def get_summary(summary_req: SummaryReq):
         await conn.commit()
 
     # Rec to df.
-    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     q_egt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] >= summary_req.cell_value_egt
