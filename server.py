@@ -4,17 +4,17 @@ import time
 import hashlib
 import json
 import numpy as np
-import dists
 from pandas import DataFrame
 from xlwings import Book
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from typing import List
 from pydantic import BaseModel
 from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, exists
 from sqlalchemy.ext.asyncio import create_async_engine
+import dists
+
 
 engine = create_async_engine(
     "sqlite+aiosqlite:///simulations.db", echo=True, future=True
@@ -658,7 +658,7 @@ async def save_sim():
     return {"code": _sig_rec and _sig_par, "message": f"Rec: {_sig_rec} / Par: {_sig_par}"}
 
   
-@app.get("/get_hist", response_model=List[RecHistSampleCount])
+@app.get("/get_hist", response_model=list[RecHistSampleCount])
 async def get_hist(offset: int = 0, limit: int = 100):
     stmt = select(
         snapshots_table.c.filename,
@@ -691,7 +691,7 @@ async def del_snapshot(del_snapshot_req: DelSnapshotReq):
     return {"code": 1, "message": f"Success({res.rowcount})"}
 
 
-@app.get("/get_hist_params", response_model=List[RecHistParams])
+@app.get("/get_hist_params", response_model=list[RecHistParams])
 async def get_hist_params(offset: int = 0, limit: int = 100):
     # SQLAlchemy not supporting View: https://stackoverflow.com/a/9769411/3054161
     # Nested sub-queries vs View performance will be the same: https://stackoverflow.com/a/25603457/3054161
@@ -770,7 +770,7 @@ async def get_csv(hash_params: str):
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
 
 
-@app.get("/get_corr", response_model=List[Corr])
+@app.get("/get_corr", response_model=list[Corr])
 async def get_corr(hash_params: str):
     stmt = select(
         snapshots_table.c.cell_type,
@@ -796,7 +796,7 @@ async def get_corr(hash_params: str):
     return df_corr_recs.to_dict(orient='records')
 
 
-@app.post("/get_summary", response_model=List[SummaryRes])
+@app.post("/get_summary", response_model=list[SummaryRes])
 async def get_summary(summary_req: SummaryReq):
     stmt = select(
         snapshots_table.c.hash_records,
