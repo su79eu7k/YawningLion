@@ -4,7 +4,7 @@ import hashlib
 import json
 import numpy as np
 import engine as eng
-import pandas as pd
+from pandas import DataFrame
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -589,6 +589,7 @@ async def save_sim():
 
     async with engine.connect() as conn:
         _res_exists = await conn.execute(stmt)
+        await conn.commit()
 
     # Proceed
     if not _res_exists.first()[0]:
@@ -752,7 +753,7 @@ async def get_csv(hash_params: str):
         await conn.commit()
 
     # Rec to df.
-    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
@@ -774,7 +775,7 @@ async def get_corr(hash_params: str):
         await conn.commit()
 
     # Rec to df.
-    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     # Calc Corr.
@@ -800,7 +801,7 @@ async def get_summary(summary_req: SummaryReq):
         await conn.commit()
 
     # Rec to df.
-    df = pd.DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     q_egt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] >= summary_req.cell_value_egt
