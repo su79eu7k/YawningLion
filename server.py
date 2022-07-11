@@ -764,7 +764,7 @@ async def get_csv(hash_params: str):
         await conn.commit()
 
     # Rec to df.
-    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res.fetchall()).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
@@ -778,7 +778,7 @@ async def get_corr(hash_params: str):
         snapshots_table.c.hash_records,
         snapshots_table.c.cell_value,
     ).where(
-        snapshots_table.c.hash_records == hash_params
+        snapshots_table.c.hash_params == hash_params
     )
 
     async with engine.connect() as conn:
@@ -786,7 +786,7 @@ async def get_corr(hash_params: str):
         await conn.commit()
 
     # Rec to df.
-    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df = DataFrame(res.fetchall()).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     # Calc Corr.
@@ -812,17 +812,20 @@ async def get_summary(summary_req: SummaryReq):
         await conn.commit()
 
     # Rec to df.
-    df = DataFrame(res).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    print(summary_req)
+    # print(res.fetchall())
+    df = DataFrame(res.fetchall()).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
-    q_egt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] >= summary_req.cell_value_egt
-    q_elt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] <= summary_req.cell_value_elt
-    if (summary_req.cell_value_egt is not None) and (summary_req.cell_value_elt is not None):
-        df = df[q_egt & q_elt]
-    elif summary_req.cell_value_egt is None:
-        df = df[q_elt]
-    elif summary_req.cell_value_elt is None:
-        df = df[q_egt]
+    if (summary_req.cell_type is not None) and (summary_req.cell_address is not None):
+        q_egt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] >= summary_req.cell_value_egt
+        q_elt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] <= summary_req.cell_value_elt
+        if (summary_req.cell_value_egt is not None) and (summary_req.cell_value_elt is not None):
+            df = df[q_egt & q_elt]
+        elif summary_req.cell_value_egt is None:
+            df = df[q_elt]
+        elif summary_req.cell_value_elt is None:
+            df = df[q_egt]
 
     df_summary = df.describe().unstack().reset_index()
     df_summary.columns = ['column', 'stats', 'value']
