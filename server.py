@@ -327,6 +327,13 @@ class SummaryReq(BaseModel):
     cell_value_elt: float | None
 
 
+class ParamsDetail(BaseModel):
+    param_type: str
+    cell_address: str
+    param_index: int | None
+    param_value: float | None
+
+
 app = FastAPI()
 
 origins = [
@@ -831,3 +838,21 @@ async def get_summary(summary_req: SummaryReq):
     df_summary.columns = ['column', 'stats', 'value']
 
     return df_summary.to_dict(orient='records')
+
+
+@app.get("/get_params_detail", response_model=list[ParamsDetail])
+async def get_params_detail(hash_params: str):
+    stmt = select(
+        params_table.c.param_type,
+        params_table.c.cell_address,
+        params_table.c.param_index,
+        params_table.c.param_value,
+    ).where(
+        params_table.c.hash_params == hash_params
+    )
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+        await conn.commit()
+
+    return res.fetchall()
