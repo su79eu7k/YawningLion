@@ -5,6 +5,7 @@ import hashlib
 import json
 import numpy as np
 from pandas import DataFrame
+import pandas as pd
 from xlwings import Book
 import asyncio
 from fastapi import FastAPI, UploadFile
@@ -332,6 +333,18 @@ class ParamsDetail(BaseModel):
     cell_address: str
     param_index: int | None
     param_value: float | None
+
+
+class ScopedDataReq(BaseModel):
+    hash_params: str
+    x_cell_address: str
+    x_cell_type: str
+    y_cell_address: str
+    y_cell_type: str
+    scoped_cell_type: str | None
+    scoped_cell_address: str | None
+    scoped_cell_value_egt: float | None
+    scoped_cell_value_elt: float | None
 
 
 app = FastAPI()
@@ -824,15 +837,15 @@ async def get_summary(summary_req: SummaryReq):
     df = DataFrame(res.fetchall()).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
-    if (summary_req.cell_type is not None) and (summary_req.cell_address is not None):
-        q_egt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] >= summary_req.cell_value_egt
-        q_elt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] <= summary_req.cell_value_elt
-        if (summary_req.cell_value_egt is not None) and (summary_req.cell_value_elt is not None):
-            df = df[q_egt & q_elt]
-        elif summary_req.cell_value_egt is None:
-            df = df[q_elt]
-        elif summary_req.cell_value_elt is None:
-            df = df[q_egt]
+    # if (summary_req.cell_type is not None) and (summary_req.cell_address is not None):
+    #     q_egt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] >= summary_req.cell_value_egt
+    #     q_elt = df[f"{summary_req.cell_type.upper()}: {summary_req.cell_address}"] <= summary_req.cell_value_elt
+    #     if (summary_req.cell_value_egt is not None) and (summary_req.cell_value_elt is not None):
+    #         df = df[q_egt & q_elt]
+    #     elif summary_req.cell_value_egt is None:
+    #         df = df[q_elt]
+    #     elif summary_req.cell_value_elt is None:
+    #         df = df[q_egt]
 
     df_summary = df.describe().unstack().reset_index()
     df_summary.columns = ['column', 'stats', 'value']
@@ -856,3 +869,49 @@ async def get_params_detail(hash_params: str):
         await conn.commit()
 
     return res.fetchall()
+
+
+@app.post("/get_scoped_data")#, response_model=list[ScopedDataRes])
+async def get_scoped_data(scoped_data_req: ScopedDataReq):
+    stmt = select(
+        snapshots_table.c.hash_records,
+        snapshots_table.c.cell_type,
+        snapshots_table.c.cell_address,
+        snapshots_table.c.cell_value,
+    ).where(
+        (snapshots_table.c.hash_params == scoped_data_req.hash_params)
+        & (
+            ((snapshots_table.c.cell_type == scoped_data_req.x_cell_type) & (snapshots_table.c.cell_address == scoped_data_req.x_cell_address))
+            | ((snapshots_table.c.cell_type == scoped_data_req.y_cell_type) & (snapshots_table.c.cell_address == scoped_data_req.y_cell_address))
+        )
+    )
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+        await conn.commit()
+
+    # Rec to df.
+    df = DataFrame(res.fetchall()).pivot(index=['hash_records'], columns=['cell_type', 'cell_address'], values=['cell_value']).reset_index()
+    df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
+
+    # if (scoped_data_req.scoped_cell_type is not None) and (scoped_data_req.scoped_cell_address is not None):
+    #     q_egt = df[f"{scoped_data_req.scoped_cell_type.upper()}: {scoped_data_req.scoped_cell_address}"] >= scoped_data_req.scoped_cell_value_egt
+    #     q_elt = df[f"{scoped_data_req.scoped_cell_type.upper()}: {scoped_data_req.scoped_cell_address}"] <= scoped_data_req.scoped_cell_value_elt
+    #     if (scoped_data_req.scoped_cell_value_egt is not None) and (scoped_data_req.scoped_cell_value_elt is not None):
+    #         df = df[q_egt & q_elt]
+    #     elif scoped_data_req.scoped_cell_value_egt is None:
+    #         df = df[q_elt]
+    #     elif scoped_data_req.scoped_cell_value_elt is None:
+    #         df = df[q_egt]
+
+    df = df.drop('hash_records', axis=1)
+    if len(df.columns) == 1:
+        df = df[[scoped_data_req.x_cell_type.upper() + ': ' + scoped_data_req.x_cell_address]]
+        df.columns = ['x']
+        df['y'] = df['x']
+    else:
+        df = df[[scoped_data_req.x_cell_type.upper() + ': ' + scoped_data_req.x_cell_address, scoped_data_req.y_cell_type.upper() + ': ' + scoped_data_req.y_cell_address]]
+        df.columns = ['x', 'y']
+
+    print(df)
+    return df.to_dict(orient='records')
