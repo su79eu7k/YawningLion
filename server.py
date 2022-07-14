@@ -5,7 +5,6 @@ import hashlib
 import json
 import numpy as np
 from pandas import DataFrame
-import pandas as pd
 from xlwings import Book
 import asyncio
 from fastapi import FastAPI, UploadFile
@@ -880,7 +879,7 @@ async def get_params_detail(hash_params: str):
 
 
 @app.post("/get_scoped_data2")#, response_model=list[ScopedDataRes])
-async def get_scoped_data2(scoped_data_req22: ScopedDataReq2):
+async def get_scoped_data2(scoped_data_req2: ScopedDataReq2):
     stmt = select(
         snapshots_table.c.hash_records,
         snapshots_table.c.cell_type,
@@ -914,11 +913,11 @@ async def get_scoped_data2(scoped_data_req22: ScopedDataReq2):
 
     df = df.drop('hash_records', axis=1)
     if len(df.columns) == 1:
-        df = df[[scoped_data_req.x_cell_type.upper() + ': ' + scoped_data_req.x_cell_address]]
+        df = df[[scoped_data_req2.x_cell_type.upper() + ': ' + scoped_data_req2.x_cell_address]]
         df.columns = ['x']
         df['y'] = df['x']
     else:
-        df = df[[scoped_data_req.x_cell_type.upper() + ': ' + scoped_data_req.x_cell_address, scoped_data_req.y_cell_type.upper() + ': ' + scoped_data_req.y_cell_address]]
+        df = df[[scoped_data_req2.x_cell_type.upper() + ': ' + scoped_data_req2.x_cell_address, scoped_data_req2.y_cell_type.upper() + ': ' + scoped_data_req2.y_cell_address]]
         df.columns = ['x', 'y']
 
     print(df)
