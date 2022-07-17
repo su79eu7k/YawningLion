@@ -266,7 +266,7 @@ class MonitoringCellReqs(BaseModel):
     cell: str
 
 
-class ProcSimReq(BaseModel):
+class RunSimStartReq(BaseModel):
     num_trials: int
 
 
@@ -500,15 +500,15 @@ async def check_connection():
             return {"code": -1, "message": f"Never connected"}
 
 
-@app.post("/proc_sim", response_model=Response)
-async def proc_sim(proc_sim_req: ProcSimReq):
+@app.post("/run_sim_start", response_model=Response)
+async def run_sim_start(run_sim_start_req: RunSimStartReq):
     sess.workbook_obj.app.screen_updating = False
     sess.workbook_obj.app.calculation = 'manual'
 
     sess.saved = None
     sess.run_benchmark()
 
-    # API calls: 0.8 times/sec(during proc_sim), takes 50ms(during no proc_sim) each.
+    # API calls: 0.8 times/sec(during run_sim_start), takes 50ms(during no run_sim_start) each.
     _async_sleep = .05
     _max_blocking = 1.25
     _safety_level = .95
@@ -520,7 +520,7 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     print(_num_chunk)
 
     sess.task = asyncio.create_task(
-        sess.run_simulation(async_sleep=_async_sleep, num_chunk=_num_chunk, num_trials=proc_sim_req.num_trials))
+        sess.run_simulation(async_sleep=_async_sleep, num_chunk=_num_chunk, num_trials=run_sim_start_req.num_trials))
     try:
         await sess.task
     except asyncio.CancelledError:
@@ -532,8 +532,8 @@ async def proc_sim(proc_sim_req: ProcSimReq):
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/cancel_sim", response_model=Response)
-async def cancel_sim():
+@app.get("/run_sim_cancel", response_model=Response)
+async def run_sim_cancel():
     res = asyncio.create_task(sess.stop_simulation(cancel=True))
     await res
 
@@ -543,8 +543,8 @@ async def cancel_sim():
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/pause_sim", response_model=Response)
-async def pause_sim():
+@app.get("/run_sim_pause", response_model=Response)
+async def run_sim_pause():
     res = asyncio.create_task(sess.stop_simulation(cancel=False))
     await res
 
@@ -554,8 +554,8 @@ async def pause_sim():
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/resume_sim", response_model=Response)
-async def resume_sim():
+@app.get("/run_sim_resume", response_model=Response)
+async def run_sim_resume():
     sess.workbook_obj.app.screen_updating = False
     sess.workbook_obj.app.calculation = 'manual'
 
@@ -571,16 +571,16 @@ async def resume_sim():
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/get_progress", response_model=Progress)
-async def get_progress():
+@app.get("/run_sim_progress", response_model=Progress)
+async def run_sim_progress():
     if sess.progress is None:
         return {"progress": None, "code": 0, "message": f"Failed: Not even 0%."}
     else:
         return {"progress": sess.progress, "code": 1, "message": f"{sess.progress * 100}%."}
 
 
-@app.post("/preview_data", response_model=PreviewDataRes)
-async def preview_data(preview_data_req: PreviewDataReq):
+@app.post("/run_sim_preview", response_model=PreviewDataRes)
+async def run_sim_preview(preview_data_req: PreviewDataReq):
     _type_x, _x = preview_data_req.x.split("'")
     _type_y, _y = preview_data_req.y.split("'")
 
@@ -605,8 +605,8 @@ async def preview_data(preview_data_req: PreviewDataReq):
     return {"code": 1, "message": f"Success", "xy": xy}
 
 
-@app.get("/save_sim", response_model=Response)
-async def save_sim():
+@app.get("/run_sim_save", response_model=Response)
+async def run_sim_save():
     saved = time.time()
 
     # Parameters
@@ -693,19 +693,6 @@ async def get_hist_list(offset: int = 0, limit: int = 100):
     return res.fetchall()
 
 
-@app.post("/del_hist_sim", response_model=Response)
-async def del_hist_sim(del_hist_sim_req: DelHistSimReq):
-    stmt = delete(snapshots_table)\
-        .where(snapshots_table.c.filename == del_hist_sim_req.filename)\
-        .where(snapshots_table.c.hash_params == del_hist_sim_req.hash_params)
-
-    async with engine.connect() as conn:
-        res = await conn.execute(stmt)
-        await conn.commit()
-
-    return {"code": 1, "message": f"Success({res.rowcount})"}
-
-
 @app.get("/get_hist_list_params", response_model=list[HistListParamsRes])
 async def get_hist_list_params(offset: int = 0, limit: int = 100):
     # SQLAlchemy not supporting View: https://stackoverflow.com/a/9769411/3054161
@@ -783,6 +770,19 @@ async def get_hist_sim_csv(hash_params: str):
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
+
+
+@app.post("/del_hist_sim", response_model=Response)
+async def del_hist_sim(del_hist_sim_req: DelHistSimReq):
+    stmt = delete(snapshots_table)\
+        .where(snapshots_table.c.filename == del_hist_sim_req.filename)\
+        .where(snapshots_table.c.hash_params == del_hist_sim_req.hash_params)
+
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+        await conn.commit()
+
+    return {"code": 1, "message": f"Success({res.rowcount})"}
 
 
 @app.get("/get_hist_sim_corr", response_model=list[HistSimCorrRes])
