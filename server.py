@@ -302,7 +302,7 @@ class RecHistParams(BaseModel):
     monitoring: int
 
 
-class DelSnapshotReq(BaseModel):
+class DelHistSimReq(BaseModel):
     filename: str
     hash_params: str
 
@@ -693,11 +693,11 @@ async def get_hist(offset: int = 0, limit: int = 100):
     return res.fetchall()
 
 
-@app.post("/del_snapshot", response_model=Response)
-async def del_snapshot(del_snapshot_req: DelSnapshotReq):
+@app.post("/del_hist_sim", response_model=Response)
+async def del_hist_sim(del_hist_sim_req: DelHistSimReq):
     stmt = delete(snapshots_table)\
-        .where(snapshots_table.c.filename == del_snapshot_req.filename)\
-        .where(snapshots_table.c.hash_params == del_snapshot_req.hash_params)
+        .where(snapshots_table.c.filename == del_hist_sim_req.filename)\
+        .where(snapshots_table.c.hash_params == del_hist_sim_req.hash_params)
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
@@ -763,8 +763,8 @@ async def get_hist_params(offset: int = 0, limit: int = 100):
     return res.fetchall()
 
 
-@app.get("/get_csv", response_class=StreamingResponse)
-async def get_csv(hash_params: str):
+@app.get("/get_hist_sim_csv", response_class=StreamingResponse)
+async def get_hist_sim_csv(hash_params: str):
     stmt = select(
         snapshots_table.c.hash_records,
         snapshots_table.c.cell_type,
