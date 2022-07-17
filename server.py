@@ -307,19 +307,19 @@ class DelSnapshotReq(BaseModel):
     hash_params: str
 
 
-class Corr(BaseModel):
+class HistSimCorrRes(BaseModel):
     x: str
     y: str
     v: float
 
 
-class SummaryRes(BaseModel):
+class HistSimSummaryRes(BaseModel):
     column: str
     stats: str
     value: float
 
 
-class SummaryReq(BaseModel):
+class HistSimSummaryReq(BaseModel):
     hash_params: str
     cell_type: str | None
     cell_address: str | None
@@ -327,14 +327,14 @@ class SummaryReq(BaseModel):
     cell_value_elt: float | None
 
 
-class ParamsDetail(BaseModel):
+class HistSimParamsRes(BaseModel):
     param_type: str
     cell_address: str
     param_index: int | None
     param_value: float | None
 
 
-class SimDataReq(BaseModel):
+class HistSimRecsReq(BaseModel):
     hash_params: str
     scoped_cell_type: str | None
     scoped_cell_address: str | None
@@ -785,8 +785,8 @@ async def get_csv(hash_params: str):
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
 
 
-@app.get("/get_corr", response_model=list[Corr])
-async def get_corr(hash_params: str):
+@app.get("/get_hist_sim_corr", response_model=list[HistSimCorrRes])
+async def get_hist_sim_corr(hash_params: str):
     stmt = select(
         snapshots_table.c.cell_type,
         snapshots_table.c.cell_address,
@@ -811,15 +811,15 @@ async def get_corr(hash_params: str):
     return df_corr_recs.to_dict(orient='records')
 
 
-@app.post("/get_summary", response_model=list[SummaryRes])
-async def get_summary(summary_req: SummaryReq):
+@app.post("/get_hist_sim_summary", response_model=list[HistSimSummaryRes])
+async def get_hist_sim_summary(hist_sim_summary_req: HistSimSummaryReq):
     stmt = select(
         snapshots_table.c.hash_records,
         snapshots_table.c.cell_type,
         snapshots_table.c.cell_address,
         snapshots_table.c.cell_value,
     ).where(
-        snapshots_table.c.hash_params == summary_req.hash_params
+        snapshots_table.c.hash_params == hist_sim_summary_req.hash_params
     )
 
     async with engine.connect() as conn:
@@ -836,8 +836,8 @@ async def get_summary(summary_req: SummaryReq):
     return df_summary.to_dict(orient='records')
 
 
-@app.get("/get_params_detail", response_model=list[ParamsDetail])
-async def get_params_detail(hash_params: str):
+@app.get("/get_hist_sim_params", response_model=list[HistSimParamsRes])
+async def get_hist_sim_params(hash_params: str):
     stmt = select(
         params_table.c.param_type,
         params_table.c.cell_address,
@@ -854,14 +854,14 @@ async def get_params_detail(hash_params: str):
     return res.fetchall()
 
 
-@app.post("/get_sim_data")#, response_model=list[SimDataRes])
-async def get_sim_data(sim_data_req: SimDataReq):
+@app.post("/get_hist_sim_recs")#, response_model=list[SimDataRes])
+async def get_hist_sim_recs(hist_sim_recs_req: HistSimRecsReq):
     stmt = select(
         snapshots_table.c.hash_records,
         snapshots_table.c.cell_type,
         snapshots_table.c.cell_address,
         snapshots_table.c.cell_value,
-    ).where(snapshots_table.c.hash_params == sim_data_req.hash_params)
+    ).where(snapshots_table.c.hash_params == hist_sim_recs_req.hash_params)
 
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
