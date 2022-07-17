@@ -288,14 +288,14 @@ class PreviewDataRes(Response):
     xy: list[PreviewDataXY]
 
 
-class RecHistSampleCount(BaseModel):
+class HistListRes(BaseModel):
     filename: str
     hash_params: str
     saved: float
     samples: int
 
 
-class RecHistParams(BaseModel):
+class HistListParamsRes(BaseModel):
     filename: str
     hash_params: str
     random: int
@@ -673,8 +673,8 @@ async def save_sim():
     return {"code": _sig_rec and _sig_par, "message": f"Rec: {_sig_rec} / Par: {_sig_par}"}
 
   
-@app.get("/get_hist", response_model=list[RecHistSampleCount])
-async def get_hist(offset: int = 0, limit: int = 100):
+@app.get("/get_hist_list", response_model=list[HistListRes])
+async def get_hist_list(offset: int = 0, limit: int = 100):
     stmt = select(
         snapshots_table.c.filename,
         snapshots_table.c.hash_params,
@@ -706,8 +706,8 @@ async def del_hist_sim(del_hist_sim_req: DelHistSimReq):
     return {"code": 1, "message": f"Success({res.rowcount})"}
 
 
-@app.get("/get_hist_params", response_model=list[RecHistParams])
-async def get_hist_params(offset: int = 0, limit: int = 100):
+@app.get("/get_hist_list_params", response_model=list[HistListParamsRes])
+async def get_hist_list_params(offset: int = 0, limit: int = 100):
     # SQLAlchemy not supporting View: https://stackoverflow.com/a/9769411/3054161
     # Nested sub-queries vs View performance will be the same: https://stackoverflow.com/a/25603457/3054161
 
