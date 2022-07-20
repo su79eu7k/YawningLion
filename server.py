@@ -140,6 +140,7 @@ class Worker:
 
     def run_benchmark(self, num_trials=20):
         # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
+        self.trial_cells = {}
         for k in self.random_cells.keys():
             _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
             self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trials, p=_prob)
@@ -168,6 +169,7 @@ class Worker:
     async def run_simulation(self, async_sleep=0.1, num_chunk=20, num_trials=2000, resume=False):
         if not resume:
             # self.trial_cells reset by random_sampling() but self.monitoring_cells doesn't.
+            self.trial_cells = {}
             for k in self.random_cells.keys():
                 _prob = np.array([p / np.sum(self.probs[k]) for p in self.probs[k]])
                 self.trial_cells[k] = np.random.choice(self.random_cells[k], num_trials, p=_prob)
