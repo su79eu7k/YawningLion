@@ -1,8 +1,9 @@
-from math import ceil
 import io
+import os
 import time
 import hashlib
 import json
+from math import ceil
 import numpy as np
 from pandas import DataFrame
 from xlwings import Book
@@ -124,6 +125,12 @@ class Worker:
         self.filename = "".join(uploadfile.filename.split('.')[:-1])
         self.filename_ext = self.filename + self.ext
         self.fullpath = self.w_dir + self.filename_ext
+
+        try:
+            if os.path.exists(self.fullpath):
+                os.remove(self.fullpath)
+        except PermissionError as ex:
+            return False
 
         with open(self.fullpath, 'wb+') as f:
             f.write(uploadfile.file.read())
@@ -383,12 +390,15 @@ async def reset():
 @app.post("/upload_file/", response_model=Response)
 async def upload_file(uploadfile: UploadFile):
     async with sess_lock:
-        sess.init_workbook(uploadfile)
-        sess.connect_workbook(sess.fullpath)
-        sess.get_selection()
+        if sess.init_workbook(uploadfile):
+            sess.connect_workbook(sess.fullpath)
+            sess.get_selection()
 
-    return {"code": 1,
-            "message": "Success: Workbook initiation, Connection, Getting selection."}
+            return {"code": 1,
+                    "message": "Success: Workbook initiation, Connection, Getting selection."}
+        else:
+            return {"code": 0,
+                    "message": "Fail: Workbook initiation error."}
 
 
 @app.get("/get_selection", response_model=Selection)
