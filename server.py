@@ -89,11 +89,11 @@ class Worker:
 
         return True
 
-    def get_hash_records(self, loop):
+    def get_hash_records(self, ts_saved, loop):
         _family_identifier = {
             "filename": self.filename_ext,
             "hash_params": self.hash_params,
-            "saved": self.saved,
+            "ts_saved": ts_saved,
             "loop": loop
         }
 
@@ -609,7 +609,7 @@ async def run_sim_preview(preview_data_req: PreviewDataReq):
 
 @app.get("/run_sim_save", response_model=Response)
 async def run_sim_save():
-    saved = time.time()
+    ts_saved = time.time()
 
     # Parameters
     # Existence check
@@ -653,12 +653,12 @@ async def run_sim_save():
     last_n = min([len(v) for v in sess.monitoring_cells.values()])
     values = []
     for n in range(first_n, last_n):
-        _hash_records = sess.get_hash_records(loop=n)
+        _hash_records = sess.get_hash_records(ts_saved=ts_saved, loop=n)
         for k in sess.monitoring_cells.keys():
-            values.append((sess.filename_ext, sess.hash_params, saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
+            values.append((sess.filename_ext, sess.hash_params, ts_saved, 'm', k, n, _hash_records, sess.monitoring_cells[k][n]))
 
         for k in sess.trial_cells.keys():
-            values.append((sess.filename_ext, sess.hash_params, saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
+            values.append((sess.filename_ext, sess.hash_params, ts_saved, 't', k, n, _hash_records, sess.trial_cells[k][n]))
 
         sess.saved = n
 
