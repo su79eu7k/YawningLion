@@ -6,7 +6,7 @@ import json
 from math import ceil
 import numpy as np
 from pandas import DataFrame
-from xlwings import Book
+from xlwings import apps, Book
 import asyncio
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,6 +60,7 @@ class Worker:
         self.fullpath = None
 
         self.workbook_obj = None
+        self.pid = None
 
         self.random_cells = {}
         self.probs = {}
@@ -113,6 +114,7 @@ class Worker:
     def connect_workbook(self, fullpath):
         try:
             self.workbook_obj = Book(fullpath)
+            self.pid = self.workbook_obj.app.pid
 
             return True
         except FileNotFoundError as ex:
@@ -138,11 +140,9 @@ class Worker:
         return True
 
     def check_connection(self):
-        try:
-            _ = self.workbook_obj.app
+        if self.pid in apps.keys():
             return True
-        except Exception as ex:
-            print(ex)
+        else:
             return False
 
     def run_benchmark(self, num_trials=20):
