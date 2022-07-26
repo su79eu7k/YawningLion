@@ -45,6 +45,14 @@ params_table = Table(
     Column("param_value", Float),
 )
 
+alias_table = Table(
+    "alias",
+    metadata_obj,
+    Column("hash_params", String),
+    Column("cell_address", String),
+    Column("cell_alias", String),
+    Column("cell_description", String),
+)
 
 async def init_db():
     async with engine.begin() as conn:
@@ -379,7 +387,7 @@ async def shutdown_event():
     await engine.dispose()
 
 
-@app.get("/reset", response_model=Response)
+@app.get("/reset", response_model=Response, tags=["Connection"])
 async def reset():
     async with sess_lock:
         sess.__init__()
@@ -387,7 +395,7 @@ async def reset():
     return {"code": 1, "message": "Success: Session re-initiated."}
 
 
-@app.post("/upload_file/", response_model=Response)
+@app.post("/upload_file/", response_model=Response, tags=["Connection"])
 async def upload_file(uploadfile: UploadFile):
     async with sess_lock:
         if sess.init_workbook(uploadfile):
@@ -401,7 +409,7 @@ async def upload_file(uploadfile: UploadFile):
                     "message": "Fail: Workbook initiation error."}
 
 
-@app.get("/get_selection", response_model=Selection)
+@app.get("/get_selection", response_model=Selection, tags=["Params"])
 async def get_selection():
     _sheet, _cell = sess.get_selection()
 
@@ -415,14 +423,14 @@ async def get_selection():
             "message": "Success: Connection, Getting selection."}
 
 
-@app.get("/select_with_focus/", response_model=Response)
+@app.get("/select_with_focus/", response_model=Response, tags=["Params"])
 async def select_with_focus(sheet: str, cell: str):
     sess.select_with_focus(sheet, cell)
 
     return {"code": 1, "message": "Success."}
 
 
-@app.post("/prob", response_model=ProbRes)
+@app.post("/prob", response_model=ProbRes, tags=["Params"])
 async def prob(prob_req: ProbReq):
     if prob_req.dist in ['norm', 'normal', 'gauss', 'gaussian']:
         x, p = dists.stat_gen_dist_normal(
@@ -455,7 +463,7 @@ async def prob(prob_req: ProbReq):
             "message": "Success: Variable processed with requested distribution."}
 
 
-@app.post("/add_random_cell", response_model=Response)
+@app.post("/add_random_cell", response_model=Response, tags=["Params"])
 async def add_random_cell(random_cell_add: RandomCellAdd):
     async with sess_lock:
         _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
@@ -467,7 +475,7 @@ async def add_random_cell(random_cell_add: RandomCellAdd):
     return {"code": 1, "message": f"Success: Assigned."}
 
 
-@app.post("/remove_random_cell", response_model=Response)
+@app.post("/remove_random_cell", response_model=Response, tags=["Params"])
 async def remove_random_cell(random_cell_remove: RandomCellRemove):
     async with sess_lock:
         _key = '!'.join([random_cell_remove.sheet, random_cell_remove.cell])
@@ -479,7 +487,7 @@ async def remove_random_cell(random_cell_remove: RandomCellRemove):
     return {"code": 1, "message": f"Success: Unassigned."}
 
 
-@app.post("/add_monitoring_cell", response_model=Response)
+@app.post("/add_monitoring_cell", response_model=Response, tags=["Params"])
 async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
     async with sess_lock:
         _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
@@ -490,7 +498,7 @@ async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
     return {"code": 1, "message": f"Success: Assigned."}
 
 
-@app.post("/remove_monitoring_cell", response_model=Response)
+@app.post("/remove_monitoring_cell", response_model=Response, tags=["Params"])
 async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
     async with sess_lock:
         _key = '!'.join([monitoring_cell_remove.sheet, monitoring_cell_remove.cell])
@@ -501,7 +509,7 @@ async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
     return {"code": 1, "message": f"Success: Assigned."}
 
 
-@app.get("/check_connection", response_model=Response)
+@app.get("/check_connection", response_model=Response, tags=["Connection"])
 async def check_connection():
     if sess.check_connection():
         return {"code": 1, "message": f"{sess.filename_ext}"}
@@ -512,7 +520,7 @@ async def check_connection():
             return {"code": -1, "message": f"Never connected"}
 
 
-@app.post("/run_sim_start", response_model=Response)
+@app.post("/run_sim_start", response_model=Response, tags=["Simulation"])
 async def run_sim_start(run_sim_start_req: RunSimStartReq):
     sess.workbook_obj.app.screen_updating = False
     sess.workbook_obj.app.calculation = 'manual'
@@ -544,7 +552,7 @@ async def run_sim_start(run_sim_start_req: RunSimStartReq):
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/run_sim_cancel", response_model=Response)
+@app.get("/run_sim_cancel", response_model=Response, tags=["Simulation"])
 async def run_sim_cancel():
     res = asyncio.create_task(sess.stop_simulation(cancel=True))
     await res
@@ -555,7 +563,7 @@ async def run_sim_cancel():
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/run_sim_pause", response_model=Response)
+@app.get("/run_sim_pause", response_model=Response, tags=["Simulation"])
 async def run_sim_pause():
     res = asyncio.create_task(sess.stop_simulation(cancel=False))
     await res
@@ -566,7 +574,7 @@ async def run_sim_pause():
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/run_sim_resume", response_model=Response)
+@app.get("/run_sim_resume", response_model=Response, tags=["Simulation"])
 async def run_sim_resume():
     sess.workbook_obj.app.screen_updating = False
     sess.workbook_obj.app.calculation = 'manual'
@@ -583,7 +591,7 @@ async def run_sim_resume():
     return {"code": 1, "message": f"Success"}
 
 
-@app.get("/run_sim_progress", response_model=Progress)
+@app.get("/run_sim_progress", response_model=Progress, tags=["Simulation"])
 async def run_sim_progress():
     if sess.progress is None:
         return {"progress": None, "code": 0, "message": f"Failed: Not even 0%."}
@@ -591,7 +599,7 @@ async def run_sim_progress():
         return {"progress": sess.progress, "code": 1, "message": f"{sess.progress * 100}%."}
 
 
-@app.post("/run_sim_preview", response_model=PreviewDataRes)
+@app.post("/run_sim_preview", response_model=PreviewDataRes, tags=["Simulation"])
 async def run_sim_preview(preview_data_req: PreviewDataReq):
     _type_x, _x = preview_data_req.x.split("'")
     _type_y, _y = preview_data_req.y.split("'")
@@ -617,7 +625,7 @@ async def run_sim_preview(preview_data_req: PreviewDataReq):
     return {"code": 1, "message": f"Success", "xy": xy}
 
 
-@app.get("/run_sim_save", response_model=Response)
+@app.get("/run_sim_save", response_model=Response, tags=["Simulation"])
 async def run_sim_save():
     ts_saved = time.time()
 
@@ -685,7 +693,7 @@ async def run_sim_save():
     return {"code": _sig_rec and _sig_par, "message": f"Rec: {_sig_rec} / Par: {_sig_par}"}
 
   
-@app.get("/get_hist_list", response_model=list[HistListRes])
+@app.get("/get_hist_list", response_model=list[HistListRes], tags=["History"])
 async def get_hist_list(offset: int = 0, limit: int = 100):
     stmt = select(
         snapshots_table.c.filename,
@@ -705,7 +713,7 @@ async def get_hist_list(offset: int = 0, limit: int = 100):
     return res.fetchall()
 
 
-@app.get("/get_hist_list_params", response_model=list[HistListParamsRes])
+@app.get("/get_hist_list_params", response_model=list[HistListParamsRes], tags=["History"])
 async def get_hist_list_params(offset: int = 0, limit: int = 100):
     # SQLAlchemy not supporting View: https://stackoverflow.com/a/9769411/3054161
     # Nested sub-queries vs View performance will be the same: https://stackoverflow.com/a/25603457/3054161
@@ -762,7 +770,7 @@ async def get_hist_list_params(offset: int = 0, limit: int = 100):
     return res.fetchall()
 
 
-@app.get("/get_hist_sim_csv", response_class=StreamingResponse)
+@app.get("/get_hist_sim_csv", response_class=StreamingResponse, tags=["History"])
 async def get_hist_sim_csv(hash_params: str):
     stmt = select(
         snapshots_table.c.hash_records,
@@ -784,7 +792,7 @@ async def get_hist_sim_csv(hash_params: str):
     return StreamingResponse(io.StringIO(df.to_csv(index=False)), media_type="text/csv")
 
 
-@app.post("/del_hist_sim", response_model=Response)
+@app.post("/del_hist_sim", response_model=Response, tags=["History"])
 async def del_hist_sim(del_hist_sim_req: DelHistSimReq):
     stmt = delete(snapshots_table)\
         .where(snapshots_table.c.filename == del_hist_sim_req.filename)\
@@ -797,7 +805,7 @@ async def del_hist_sim(del_hist_sim_req: DelHistSimReq):
     return {"code": 1, "message": f"Success({res.rowcount})"}
 
 
-@app.get("/get_hist_sim_corr", response_model=list[HistSimCorrRes])
+@app.get("/get_hist_sim_corr", response_model=list[HistSimCorrRes], tags=["History"])
 async def get_hist_sim_corr(hash_params: str):
     stmt = select(
         snapshots_table.c.cell_type,
@@ -823,7 +831,7 @@ async def get_hist_sim_corr(hash_params: str):
     return df_corr_recs.to_dict(orient='records')
 
 
-@app.post("/get_hist_sim_summary", response_model=list[HistSimSummaryRes])
+@app.post("/get_hist_sim_summary", response_model=list[HistSimSummaryRes], tags=["History"])
 async def get_hist_sim_summary(hist_sim_summary_req: HistSimSummaryReq):
     stmt = select(
         snapshots_table.c.hash_records,
@@ -848,7 +856,7 @@ async def get_hist_sim_summary(hist_sim_summary_req: HistSimSummaryReq):
     return df_summary.to_dict(orient='records')
 
 
-@app.get("/get_hist_sim_params", response_model=list[HistSimParamsRes])
+@app.get("/get_hist_sim_params", response_model=list[HistSimParamsRes], tags=["History"])
 async def get_hist_sim_params(hash_params: str):
     stmt = select(
         params_table.c.param_type,
@@ -866,7 +874,7 @@ async def get_hist_sim_params(hash_params: str):
     return res.fetchall()
 
 
-@app.post("/get_hist_sim_recs")#, response_model=list[SimDataRes])
+@app.post("/get_hist_sim_recs", tags=["History"])#, response_model=list[SimDataRes])
 async def get_hist_sim_recs(hist_sim_recs_req: HistSimRecsReq):
     stmt = select(
         snapshots_table.c.hash_records,
