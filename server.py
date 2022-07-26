@@ -959,7 +959,7 @@ async def get_alias(alias: Alias):
 
 
 @app.post("/del_alias", tags=["Alias"], response_model=Response)
-async def del_alias(alias=Alias):
+async def del_alias(alias: Alias):
     stmt = delete(alias_table).where(
         (alias_table.c.hash_params == alias.hash_params)
          & (alias_table.c.cell_address == alias.cell_address)
