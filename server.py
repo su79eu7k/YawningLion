@@ -12,7 +12,7 @@ from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, delete, func, exists
+from sqlalchemy import MetaData, Table, Column, String, Float, Integer, select, insert, update, delete, func, exists
 from sqlalchemy.ext.asyncio import create_async_engine
 import dists
 
@@ -357,6 +357,13 @@ class HistSimRecsReq(BaseModel):
     scoped_cell_address: str | None
     scoped_cell_value_egt: float | None
     scoped_cell_value_elt: float | None
+
+
+class Alias(BaseModel):
+    hash_params: str
+    cell_address: str
+    cell_alias: str
+    cell_description: str
 
 
 app = FastAPI()
@@ -892,3 +899,74 @@ async def get_hist_sim_recs(hist_sim_recs_req: HistSimRecsReq):
     df.columns = [df.columns.values[0][0]] + [f"{col[1].upper()}: {col[2]}" for col in df.columns.values[1:]]
 
     return df.drop('hash_records', axis=1).to_dict(orient='records')
+
+
+@app.post("/set_alias", tags=["Alias"], response_model=Response)
+async def set_alias(alias: Alias):
+    # Existence check
+    stmt = exists().where(
+        (alias_table.c.hash_params == alias.hash_params)
+         & (alias_table.c.cell_address == alias.cell_address)
+    ).select()
+
+    async with engine.connect() as conn:
+        _res_exists = await conn.execute(stmt)
+        await conn.commit()
+
+    # Create or Update
+    if not _res_exists.first()[0]:
+        stmt = insert(alias_table).values(
+            hash_params=alias.hash_params,
+            cell_address=alias.cell_address,
+            cell_alias=alias.cell_alias,
+            cell_description=alias.cell_description,
+        )
+    else:
+        stmt = update(alias_table).where(
+            (alias_table.c.hash_params == alias.hash_params)
+            & (alias_table.c.cell_address == alias.cell_address)
+        ).values(
+            hash_params=alias.hash_params,
+            cell_address=alias.cell_address,
+            cell_alias=alias.cell_alias,
+            cell_description=alias.cell_description,
+        )
+
+    async with engine.connect() as conn:
+        _res = await conn.execute(stmt)
+        await conn.commit()
+
+    return {"code": 1, "message": "Success: Alias saved."}
+
+
+@app.post("/get_alias", tags=["Alias"], response_model=Alias)
+async def get_alias(alias: Alias):
+    stmt = select(
+        alias_table.c.hash_params,
+        alias_table.c.cell_address,
+        alias_table.c.cell_alias,
+        alias_table.c.cell_description,
+    ).where(
+        (alias_table.c.hash_params == alias.hash_params)
+         & (alias_table.c.cell_address == alias.cell_address)
+    )
+    
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+        await conn.commit()
+
+    return res.fetchone()
+
+
+@app.post("/del_alias", tags=["Alias"], response_model=Response)
+async def del_alias(alias=Alias):
+    stmt = delete(alias_table).where(
+        (alias_table.c.hash_params == alias.hash_params)
+         & (alias_table.c.cell_address == alias.cell_address)
+    )
+    
+    async with engine.connect() as conn:
+        res = await conn.execute(stmt)
+        await conn.commit()
+
+    return {"code": 1, "message": f"Success({res.rowcount})"}
