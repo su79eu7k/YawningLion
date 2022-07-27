@@ -479,7 +479,7 @@ async def add_random_cell(random_cell_add: RandomCellAdd):
 
         sess.hash_params = sess.get_hash_params()
 
-    return {"code": 1, "message": f"Success: Assigned."}
+    return {"code": 1, "message": sess.hash_params}
 
 
 @app.post("/remove_random_cell", response_model=Response, tags=["Params"])
@@ -491,7 +491,7 @@ async def remove_random_cell(random_cell_remove: RandomCellRemove):
 
         sess.hash_params = sess.get_hash_params()
 
-    return {"code": 1, "message": f"Success: Unassigned."}
+    return {"code": 1, "message": sess.hash_params}
 
 
 @app.post("/add_monitoring_cell", response_model=Response, tags=["Params"])
@@ -502,7 +502,7 @@ async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
 
         sess.hash_params = sess.get_hash_params()
 
-    return {"code": 1, "message": f"Success: Assigned."}
+    return {"code": 1, "message": sess.hash_params}
 
 
 @app.post("/remove_monitoring_cell", response_model=Response, tags=["Params"])
@@ -513,7 +513,7 @@ async def remove_monitoring_cell(monitoring_cell_remove: MonitoringCellReqs):
 
         sess.hash_params = sess.get_hash_params()
 
-    return {"code": 1, "message": f"Success: Assigned."}
+    return {"code": 1, "message": sess.hash_params}
 
 
 @app.get("/check_connection", response_model=Response, tags=["Connection"])
