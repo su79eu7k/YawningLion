@@ -49,6 +49,7 @@ alias_table = Table(
     "alias",
     metadata_obj,
     Column("hash_params", String),
+    Column("cell_type", String),
     Column("cell_address", String),
     Column("cell_alias", String),
     Column("cell_description", String),
@@ -74,6 +75,8 @@ class Worker:
         self.probs = {}
         self.trial_cells = {}
         self.monitoring_cells = {}
+        self.random_cells_aliases = {}
+        self.monitoring_cells_aliases = {}
 
         self.chunks = None
         self.chunk_processed = None
@@ -115,6 +118,8 @@ class Worker:
             "random_cells": dict(sorted(self.random_cells.items())),
             "probs": dict(sorted(self.probs.items())),
             "monitoring_cells": {k: [] for k, _ in sorted(self.monitoring_cells.items())},
+            "random_cells_aliases": dict(sorted(sess.random_cells_aliases.items())),
+            "monitoring_cells_aliases": dict(sorted(sess.monitoring_cells_aliases.items()))
         }
 
         return hashlib.md5(json.dumps(_params).encode('utf-8')).hexdigest()
@@ -271,6 +276,8 @@ class RandomCellAdd(BaseModel):
     cell: str
     x: list[float]
     prob: list[float]
+    alias: str | None
+    description: str | None
 
 
 class RandomCellRemove(BaseModel):
@@ -281,6 +288,8 @@ class RandomCellRemove(BaseModel):
 class MonitoringCellReqs(BaseModel):
     sheet: str
     cell: str
+    alias: str | None
+    description: str | None
 
 
 class RunSimStartReq(BaseModel):
@@ -476,6 +485,7 @@ async def add_random_cell(random_cell_add: RandomCellAdd):
         _key = '!'.join([random_cell_add.sheet, random_cell_add.cell])
         sess.random_cells[_key] = random_cell_add.x
         sess.probs[_key] = random_cell_add.prob
+        sess.random_cells_aliases[_key] = dict({'alias': random_cell_add.alias, 'description': random_cell_add.description})
 
         sess.hash_params = sess.get_hash_params()
 
@@ -499,6 +509,8 @@ async def add_monitoring_cell(monitoring_cell_add: MonitoringCellReqs):
     async with sess_lock:
         _key = '!'.join([monitoring_cell_add.sheet, monitoring_cell_add.cell])
         sess.monitoring_cells[_key] = []
+        sess.monitoring_cells_aliases[_key] = dict({'alias': monitoring_cell_add.alias, 'description': monitoring_cell_add.description})
+
 
         sess.hash_params = sess.get_hash_params()
 
@@ -669,6 +681,37 @@ async def run_sim_save():
     else:
         _sig_par = 1
 
+    # Aliases
+    # Existence check
+    stmt = exists().where(
+        (alias_table.c.hash_params == sess.hash_params)
+    ).select()
+
+    async with engine.connect() as conn:
+        _res_exists = await conn.execute(stmt)
+        await conn.commit()
+
+    # Create
+    if not _res_exists.first()[0]:
+        values = []
+        for k in sess.random_cells_aliases.keys():
+            values.append((sess.hash_params, 'r', k, sess.random_cells_aliases[k]['alias'], sess.random_cells_aliases[k]['description']))
+        for k in sess.monitoring_cells_aliases.keys():
+            values.append((sess.hash_params, 'm', k, sess.monitoring_cells_aliases[k]['alias'], sess.monitoring_cells_aliases[k]['description']))
+        
+        stmt = insert(alias_table).values(values)
+
+        if values:
+            async with engine.connect() as conn:
+                _res = await conn.execute(stmt)
+                await conn.commit()
+
+            _sig_ali = 1
+        else:
+            _sig_ali = 0
+    else:
+        _sig_ali = 1
+
     # Records
     if sess.saved:
         first_n = sess.saved + 1
@@ -697,7 +740,7 @@ async def run_sim_save():
     else:
         _sig_rec = 0
 
-    return {"code": _sig_rec and _sig_par, "message": f"Rec: {_sig_rec} / Par: {_sig_par}"}
+    return {"code": _sig_rec and _sig_par and _sig_ali, "message": f"Rec: {_sig_rec} / Par: {_sig_par} / Ali: {_sig_ali}"}
 
   
 @app.get("/get_hist_list", response_model=list[HistListRes], tags=["History"])
@@ -901,8 +944,9 @@ async def get_hist_sim_recs(hist_sim_recs_req: HistSimRecsReq):
     return df.drop('hash_records', axis=1).to_dict(orient='records')
 
 
-@app.post("/set_alias", tags=["Alias"], response_model=Response)
+@app.post("/set_alias", tags=["Alias"], response_model=Response, deprecated=True)
 async def set_alias(alias: Alias):
+    # Aliases
     # Existence check
     stmt = exists().where(
         (alias_table.c.hash_params == alias.hash_params)
