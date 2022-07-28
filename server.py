@@ -983,30 +983,28 @@ async def set_alias(alias: Alias):
     return {"code": 1, "message": "Success: Alias saved."}
 
 
-@app.post("/get_alias", tags=["Alias"], response_model=Alias)
-async def get_alias(alias: Alias):
+@app.get("/get_alias", tags=["Alias"], response_model=list[Alias])
+async def get_alias(hash_params: str):
     stmt = select(
         alias_table.c.hash_params,
         alias_table.c.cell_address,
         alias_table.c.cell_alias,
         alias_table.c.cell_description,
     ).where(
-        (alias_table.c.hash_params == alias.hash_params)
-         & (alias_table.c.cell_address == alias.cell_address)
+        alias_table.c.hash_params == hash_params
     )
     
     async with engine.connect() as conn:
         res = await conn.execute(stmt)
         await conn.commit()
 
-    return res.fetchone()
+    return res.fetchall()
 
 
 @app.post("/del_alias", tags=["Alias"], response_model=Response)
 async def del_alias(alias: Alias):
     stmt = delete(alias_table).where(
-        (alias_table.c.hash_params == alias.hash_params)
-         & (alias_table.c.cell_address == alias.cell_address)
+        alias_table.c.hash_params == alias.hash_params
     )
     
     async with engine.connect() as conn:
