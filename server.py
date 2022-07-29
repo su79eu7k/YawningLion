@@ -370,6 +370,7 @@ class HistSimRecsReq(BaseModel):
 
 class Alias(BaseModel):
     hash_params: str
+    cell_type: str
     cell_address: str
     cell_alias: str
     cell_description: str
@@ -987,6 +988,7 @@ async def set_alias(alias: Alias):
 async def get_alias(hash_params: str):
     stmt = select(
         alias_table.c.hash_params,
+        alias_table.c.cell_type,
         alias_table.c.cell_address,
         alias_table.c.cell_alias,
         alias_table.c.cell_description,
@@ -1002,9 +1004,9 @@ async def get_alias(hash_params: str):
 
 
 @app.post("/del_alias", tags=["Alias"], response_model=Response)
-async def del_alias(alias: Alias):
+async def del_alias(hash_params: str):
     stmt = delete(alias_table).where(
-        alias_table.c.hash_params == alias.hash_params
+        alias_table.c.hash_params == hash_params
     )
     
     async with engine.connect() as conn:
