@@ -18,7 +18,7 @@ import dists
 
 
 engine = create_async_engine(
-    "sqlite+aiosqlite:///simulations.db", echo=True, future=True
+    "sqlite+aiosqlite:///simulations.db", echo=False, future=True
 )
 
 metadata_obj = MetaData()
